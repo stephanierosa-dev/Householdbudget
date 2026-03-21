@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Household Cash Flow Dashboard - V14 LIVE</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-storage-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-body: #f4f7f6; --bg-card: #ffffff; --text-main: #333333; --text-muted: #555555; 
+            --heading: #2c3e50; --border: #cccccc; --th-bg: #f8f9fa; --input-bg: #ffffff;
+            --cal-empty: transparent; --cal-day: #fdfdfd; --cal-border: #e0e0e0;
+        }
+        [data-theme="dark"] {
+            --bg-body: #1a1a2e; --bg-card: #16213e; --text-main: #e9e9eb; --text-muted: #b0b3b8; 
+            --heading: #ffffff; --border: #444444; --th-bg: #0f3460; --input-bg: #1a1a2e;
+            --cal-empty: transparent; --cal-day: #16213e; --cal-border: #333333;
+        }
+
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 20px; max-width: 1200px; margin: 0 auto; transition: 0.3s; }
+        h1, h2, h3 { color: var(--heading); margin-top: 0; }
+        
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
+        .top-bar-btns { display: flex; gap: 10px; flex-wrap: wrap;}
+        
+        .grid-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        @media (max-width: 900px) { .grid-layout { grid-template-columns: 1fr; } }
+        .card { background: var(--bg-card); padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; transition: 0.3s; }
+        
+        .form-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 130px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; color: var(--text-muted);}
+        input, select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; font-size: 14px; background: var(--input-bg); color: var(--text-main); color-scheme: light dark;}
+        
+        button { background-color: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; width: 100%; transition: 0.2s;}
+        button:hover { background-color: #2980b9; }
+        .btn-success { background-color: #2ecc71; margin-top: 10px; font-size: 16px; padding: 12px;}
+        .btn-success:hover { background-color: #27ae60; }
+        .btn-outline { background-color: transparent; color: #3498db; border: 2px solid #3498db; margin-bottom: 15px; }
+        .btn-sandbox { background-color: #e67e22; }
+        .btn-icon { width: auto; padding: 8px 12px; }
+        .btn-export { background-color: #27ae60; }
+        .btn-sweep { background-color: #9b59b6; margin-bottom: 15px; }
+        .btn-wrapped { background: linear-gradient(45deg, #8e44ad, #3498db); color: white; border: none; animation: pop 2s infinite; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+        th { background-color: var(--th-bg); color: var(--heading); }
+        .income-text { color: #2ecc71; font-weight: bold; }
+        .danger { background-color: rgba(231, 76, 60, 0.1) !important; }
+        .shifted { background-color: rgba(243, 156, 18, 0.1) !important; }
+        .is-paid td { opacity: 0.5; text-decoration: line-through; }
+        
+        .badge { display: inline-block; padding: 3px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; margin-right: 5px; text-transform: uppercase;}
+        .badge-flex { background-color: #f39c12; color: white; }
+        .badge-sinking { background-color: #1abc9c; color: white; }
+        .badge-project { background-color: #7f8c8d; color: white; }
+        
+        /* Modals & Dashboards */
+        .streak-counter { display: flex; align-items: center; gap: 10px; background: rgba(243, 156, 18, 0.1); padding: 10px 15px; border-radius: 8px; border: 1px solid #f39c12; font-weight: bold; color: #d35400; margin-bottom: 20px;}
+        .streak-fire { font-size: 24px; animation: flicker 1.5s infinite alternate; }
+        @keyframes flicker { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0.8; transform: scale(1.1); } }
+        
+        .insights-box { background: rgba(52, 152, 219, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #3498db; margin-bottom: 20px; font-size: 14px;}
+        .insights-box h3 { margin: 0 0 8px 0; color: #2980b9; display: flex; align-items: center; gap: 5px; }
+
+        .chart-container { position: relative; height: 200px; width: 100%; display: flex; justify-content: center; margin-top: 10px;}
+        .goal-container, .debt-container { margin-bottom: 15px; background: rgba(0,0,0,0.02); padding: 10px; border-radius: 6px; border: 1px solid var(--border);}
+        .goal-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 5px; }
+        .goal-track { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; }
+        .goal-fill { background: #1abc9c; height: 100%; transition: width 0.5s ease; }
+        
+        .sub-auditor { background: rgba(155, 89, 182, 0.1); padding: 15px; border-radius: 6px; border-left: 4px solid #9b59b6; margin-bottom: 20px; }
+        .sub-auditor h3 { margin: 0 0 5px 0; font-size: 14px; color: #8e44ad; }
+        .sub-auditor .burn-rate { font-size: 24px; font-weight: bold; color: var(--heading); }
+        .cloud-indicator { font-size: 12px; color: #27ae60; font-weight: bold; display: flex; align-items: center; gap: 5px; margin-bottom: 10px;}
+        .pulse-dot { width: 8px; height: 8px; background-color: #27ae60; border-radius: 50%; animation: pulse-dot 1.5s infinite; }
+        @keyframes pulse-dot { 0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(39, 174, 96, 0); } 100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(39, 174, 96, 0); } }
+
+        /* Calendar Styles */
+        .calendar-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .calendar-nav { background: var(--th-bg); color: var(--text-main); border: 1px solid var(--border); width: auto; padding: 5px 15px; }
+        .calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; font-weight: bold; text-align: center; color: var(--text-muted); font-size: 12px; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 5px; }
+        .calendar-day { background: var(--cal-day); border: 1px solid var(--cal-border); border-radius: 4px; padding: 4px; min-height: 80px; display: flex; flex-direction: column; }
+        .calendar-day.empty { background: var(--cal-empty); border: none; }
+        .day-number { font-weight: bold; color: var(--heading); margin-bottom: 5px; font-size: 12px; }
+        .cal-event { font-size: 10px; margin-bottom: 2px; padding: 2px 4px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+        .cal-income { background-color: rgba(46, 204, 113, 0.2); color: #145a32; border-left: 3px solid #27ae60; }
+        .cal-expense { background-color: rgba(231, 76, 60, 0.2); color: #78281f; border-left: 3px solid #e74c3c; }
+        .cal-shifted { background-color: rgba(243, 156, 18, 0.2); color: #7e5109; border-left: 3px solid #f39c12; border-style: dashed; }
+        .cal-is-paid { opacity: 0.4; text-decoration: line-through; border-left: 3px solid #7f8c8d; background-color: rgba(127, 140, 141, 0.1); color: var(--text-main); }
+        .cal-eod-balance { margin-top: auto; font-size: 10px; font-weight: bold; text-align: right; color: var(--text-muted); }
+        
+        [data-theme="dark"] .cal-income { color: #2ecc71; }
+        [data-theme="dark"] .cal-expense { color: #e74c3c; }
+        [data-theme="dark"] .cal-shifted { color: #f39c12; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #777;">V14 LIVE</span></h1>
+            <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
+        </div>
+        <div class="top-bar-btns">
+            <button class="btn-icon btn-wrapped" onclick="showYearInReview()">🎉 Year in Review</button>
+            <button class="btn-icon btn-export" onclick="exportCSV()">📥 Export CSV</button>
+            <button class="btn-icon btn-sandbox" id="sandboxBtn" onclick="toggleSandbox()">🧪 Sandbox</button>
+            <button class="btn-icon btn-settings" onclick="openAccountModal()">⚙️ Accounts</button>
+            <button class="btn-icon" onclick="toggleTheme()">🌙 Dark Mode</button>
+        </div>
+    </div>
+
+    <div id="accountModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background:var(--bg-card); padding:25px; border-radius:8px; width:400px; color:var(--text-main);">
+            <h2>Manage Accounts</h2>
+            <div id="accountListContainer" style="margin-bottom: 20px; max-height: 200px; overflow-y: auto;"></div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="newAccName" placeholder="Name" style="flex:1;">
+                <input type="color" id="newAccColor" value="#3498db" style="width: 40px; padding:2px; height:36px;">
+                <button onclick="addCustomAccount()" style="width: auto;">Add</button>
+            </div>
+            <button class="btn-outline" onclick="document.getElementById('accountModal').style.display='none'" style="margin-top: 20px;">Done</button>
+        </div>
+    </div>
+
+    <div id="wrappedModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background: linear-gradient(135deg, #1abc9c, #3498db); padding:30px; border-radius:12px; width:450px; color:white; text-align:center; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <h1 style="color:white; margin-bottom:5px;">🎉 2026 Year in Review</h1>
+            <div style="background:rgba(255,255,255,0.1); padding:15px; border-radius:8px; margin:20px 0;">
+                <h3 style="color:white; margin:0 0 5px 0;">Biggest Spending Category</h3>
+                <h2 style="color:#f1c40f; margin:0;" id="wrapTopCat">Loading...</h2>
+            </div>
+            <div style="display:flex; gap:15px; margin-bottom:20px;">
+                <div style="flex:1; background:rgba(255,255,255,0.1); padding:15px; border-radius:8px;">
+                    <div style="font-size:12px; opacity:0.8; font-weight:bold;">Total Saved</div>
+                    <div style="font-size:20px; font-weight:bold;" id="wrapSaved">$0</div>
+                </div>
+                <div style="flex:1; background:rgba(255,255,255,0.1); padding:15px; border-radius:8px;">
+                    <div style="font-size:12px; opacity:0.8; font-weight:bold;">Debt Destroyed</div>
+                    <div style="font-size:20px; font-weight:bold;" id="wrapDebt">$0</div>
+                </div>
+            </div>
+            <button onclick="document.getElementById('wrappedModal').style.display='none'" style="background:white; color:#3498db;">Close</button>
+        </div>
+    </div>
+
+    <div class="streak-counter" id="streakCounter" style="display:none;">
+        <span class="streak-fire">🔥</span>
+        <div>
+            <div style="font-size: 18px;"><strong><span id="streakDays">0</span> Day No-Spend Streak!</strong></div>
+            <div style="font-size: 12px; font-weight: normal;">You haven't made any 'Flexible' purchases in a while. Keep it up!</div>
+        </div>
+    </div>
+
+    <div class="insights-box" id="insightsBox" style="display:none;">
+        <h3>💡 Smart Financial Insights</h3>
+        <ul id="insightsList" style="margin:0; padding-left:20px; font-size:13px; line-height:1.5;"></ul>
+    </div>
+
+    <div class="card">
+        <button class="btn-outline" onclick="loadExampleData()" id="demoBtn">Load Master Example Setup (Overwrites Database)</button>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Main Starting Balance</label>
+                <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()">
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-layout">
+        <div>
+            <div class="card">
+                <h2>Add / Edit Transaction</h2>
+                <div class="form-row">
+                    <div class="form-group"><label>Name</label><input type="text" id="eventName" placeholder="Electric Bill"></div>
+                    <div class="form-group"><label>Project Tag (Optional)</label><input type="text" id="eventProject" placeholder="e.g. Cosplay Build"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="eventType" onchange="toggleGoalInput()">
+                            <option value="income">Income (+)</option>
+                            <option value="expense">Expense (-)</option>
+                            <option value="sinking">Sinking Fund (Goal)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="eventCategory">
+                            <option value="Income">Income</option>
+                            <option value="Housing & Utilities">Housing & Utilities</option>
+                            <option value="Groceries & Dining">Groceries & Dining</option>
+                            <option value="Pets">Pets</option>
+                            <option value="Hobbies & Shopping">Hobbies & Shopping</option>
+                            <option value="Subscriptions">Subscriptions</option>
+                            <option value="Savings">Savings / Sinking Fund</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" id="goalTargetContainer" style="display: none;">
+                    <div class="form-group"><label>Total Goal Target ($)</label><input type="number" id="eventGoalTarget" value="0"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Account / Owner</label><select id="eventAccount"></select></div>
+                    <div class="form-group">
+                        <label>Flexibility</label>
+                        <select id="eventFlexibility"><option value="fixed">Fixed</option><option value="flexible">Flexible</option></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Amount ($)</label><input type="number" id="eventAmount"></div>
+                    <div class="form-group"><label>Date</label><input type="date" id="eventDate"></div>
+                    <div class="form-group">
+                        <label>Frequency</label>
+                        <select id="eventFrequency"><option value="once">One-time</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="monthly">Monthly</option></select>
+                    </div>
+                </div>
+                <button onclick="processInput()">Save to Schedule</button>
+            </div>
+
+            <div class="card">
+                <h2>🔥 Debt Demolisher</h2>
+                <div class="form-row">
+                    <div class="form-group"><label>Debt Name</label><input type="text" id="debtName" placeholder="e.g. Discover Card"></div>
+                    <div class="form-group"><label>Balance ($)</label><input type="number" id="debtBalance" placeholder="5000"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Interest (APR %)</label><input type="number" id="debtAPR" placeholder="24.99"></div>
+                    <div class="form-group"><label>Monthly Pay ($)</label><input type="number" id="debtPay" placeholder="150"></div>
+                </div>
+                <button onclick="addDebt()" style="background:#e74c3c;">Add Debt Tracker</button>
+                <div id="debtList" style="margin-top: 15px;"></div>
+            </div>
+
+            <div class="card" id="goalsDashboard">
+                <h2>Savings Goals</h2>
+                <button class="btn-sweep" onclick="sweepLeftovers()">🧹 Sweep Leftover Cash</button>
+                <div id="goalsList"></div>
+            </div>
+
+            <div class="card">
+                <h2>Spending Analytics</h2>
+                <div class="sub-auditor">
+                    <h3>Monthly Subscription Burn Rate</h3>
+                    <div class="burn-rate" id="subBurnRate">$0.00</div>
+                </div>
+                <div class="chart-container"><canvas id="spendingChart"></canvas></div>
+            </div>
+        </div>
+
+        <div>
+            <div class="card">
+                <button class="btn-success" onclick="generateSchedule()">Calculate & Optimize Schedule</button>
+                
+                <div id="calendarContainer" style="display: none; margin-top: 20px;">
+                    <div class="calendar-controls">
+                        <button class="calendar-nav" onclick="navigateCalendar(-1)">&#8592; Prev</button>
+                        <div style="text-align: center;">
+                            <h2 id="calendarMonthLabel" style="margin:0;">Month View</h2>
+                            <button id="toggleViewBtn" class="btn-outline" style="padding: 2px 8px; font-size: 11px; margin: 5px 0 0 0; width: auto;" onclick="toggleCalendarView()">Switch to Weekly</button>
+                        </div>
+                        <button class="calendar-nav" onclick="navigateCalendar(1)">Next &#8594;</button>
+                    </div>
+                    <div class="calendar-header"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
+                    <div class="calendar-grid" id="calendarGrid"></div>
+                </div>
+
+                <h3 style="margin-top: 30px;">Chronological Ledger</h3>
+                <table id="scheduleTable">
+                    <thead><tr><th>Paid</th><th>Date</th><th>Transaction</th><th>Amount</th><th>Balance</th><th>Action</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. FIREBASE SETUP ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyBqClFnCHFdn8bGruQxqg7CBK2YxoZlK7U",
+          authDomain: "rosa-household-budget.firebaseapp.com",
+          projectId: "rosa-household-budget",
+          storageBucket: "rosa-household-budget.firebasestorage.app",
+          messagingSenderId: "157279634227",
+          appId: "1:157279634227:web:62087cd6adebbe55ea3446"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        // State
+        let rawEvents = []; let sandboxEvents = []; let isSandbox = false; let myChart = null;
+        let debts = [];
+        let customAccounts = [];
+        let calViewMode = 'month'; let currentCalYear = new Date().getFullYear(); let currentCalMonth = new Date().getMonth();
+        let currentWeekStart = new Date(); currentWeekStart.setHours(0,0,0,0); currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); 
+
+        window.onload = function() { 
+            loadTheme(); 
+            setupRealtimeListeners(); 
+        };
+
+        // --- 2. CLOUD DATABASE SYNC ---
+        function setupRealtimeListeners() {
+            // Listen to Events
+            db.collection("events").onSnapshot((snapshot) => {
+                rawEvents = [];
+                snapshot.forEach((doc) => { rawEvents.push({ id: doc.id, ...doc.data() }); });
+                document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`;
+                if(!isSandbox) generateSchedule();
+            }, (error) => {
+                document.getElementById('cloudStatus').innerHTML = `⚠️ DB Permissions Error (See Instructions)`;
+                console.error("Firestore Error:", error);
+            });
+
+            // Listen to Accounts
+            db.collection("settings").doc("accounts").onSnapshot((doc) => {
+                if(doc.exists && doc.data().list) {
+                    customAccounts = doc.data().list;
+                } else {
+                    // Defaults if empty
+                    customAccounts = [ { id: 'joint', name: 'Joint Checking', color: '#9b59b6' }, { id: 'steph', name: 'Stephanie', color: '#e67e22' }, { id: 'ray', name: 'Ray', color: '#34495e' } ];
+                }
+                refreshAccountDropdown();
+                if(!isSandbox) generateSchedule();
+            });
+
+            // Listen to Debts
+            db.collection("settings").doc("debts").onSnapshot((doc) => {
+                if(doc.exists && doc.data().list) debts = doc.data().list;
+                else debts = [];
+                renderDebts();
+            });
+
+            // Listen to Balance
+            db.collection("settings").doc("balance").onSnapshot((doc) => {
+                if(doc.exists) document.getElementById('startBalance').value = doc.data().amount;
+                if(!isSandbox) generateSchedule();
+            });
+        }
+
+        // Database Write Helpers
+        function saveEventToDb(ev) {
+            if(isSandbox) { sandboxEvents.push(ev); generateSchedule(); }
+            else { db.collection("events").doc(ev.id).set(ev); }
+        }
+        function deleteEventFromDb(id) {
+            if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => e.id !== id); generateSchedule(); }
+            else { db.collection("events").doc(id).delete(); }
+        }
+        function updateBalanceToDB() {
+            if(!isSandbox) db.collection("settings").doc("balance").set({ amount: parseFloat(document.getElementById('startBalance').value) || 0 });
+        }
+        function updateAccountsToDB() {
+            if(!isSandbox) db.collection("settings").doc("accounts").set({ list: customAccounts });
+        }
+        function updateDebtsToDB() {
+            if(!isSandbox) db.collection("settings").doc("debts").set({ list: debts });
+        }
+
+        // --- 3. RECEIPT VAULT (STORAGE) ---
+        function uploadReceipt(eventId) {
+            if(isSandbox) { alert("Receipts cannot be uploaded in Sandbox mode."); return; }
+            
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*,application/pdf';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if(!file) return;
+                
+                document.getElementById('cloudStatus').innerHTML = `Uploading Receipt...`;
+                try {
+                    const storageRef = storage.ref(`receipts/${eventId}/${file.name}`);
+                    await storageRef.put(file);
+                    const url = await storageRef.getDownloadURL();
+                    
+                    // Attach URL to the event document
+                    await db.collection("events").doc(eventId).update({ receiptUrl: url });
+                    document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`;
+                    alert("Receipt attached successfully!");
+                } catch(err) {
+                    console.error("Upload failed", err);
+                    alert("Failed to upload. Make sure your Firebase Storage Rules allow writes.");
+                }
+            };
+            input.click();
+        }
+
+        // --- CORE LOGIC ---
+        function getActiveEvents() { return isSandbox ? sandboxEvents : rawEvents; }
+
+        function processInput() {
+            const name = document.getElementById('eventName').value; const type = document.getElementById('eventType').value; const cat = document.getElementById('eventCategory').value; const acc = document.getElementById('eventAccount').value; const flex = document.getElementById('eventFlexibility').value; const amt = parseFloat(document.getElementById('eventAmount').value); const date = document.getElementById('eventDate').value; const freq = document.getElementById('eventFrequency').value; const goal = parseFloat(document.getElementById('eventGoalTarget').value) || 0; const proj = document.getElementById('eventProject').value.trim();
+            if(!name || isNaN(amt) || !date) { alert("Fill all required fields!"); return; }
+            addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj);
+            document.getElementById('eventName').value=''; document.getElementById('eventAmount').value=''; document.getElementById('eventProject').value=''; document.getElementById('eventFrequency').value='once';
+        }
+
+        function addRecurringEvents(name, type, cat, acc, flex, amt, start, freq, goal, proj) {
+            let cur = start; let it = 0;
+            while(it < 26) {
+                let uniqueId = Date.now().toString() + Math.random().toString(36).substr(2,5);
+                let ev = { id: uniqueId, name, type, category: cat, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: cur, currentDate: cur, shifted: false, isPaid: false, goalTarget: goal, projectTag: proj };
+                saveEventToDb(ev);
+                if(freq === 'once') break;
+                if(freq === 'weekly') cur = addDays(cur, 7); if(freq === 'biweekly') cur = addDays(cur, 14); if(freq === 'monthly') cur = addMonths(cur, 1);
+                if(Math.ceil(Math.abs(new Date(cur) - new Date(start))/(1000*60*60*24)) > 120) break;
+                it++;
+            }
+        }
+
+        function editEvent(id) {
+            let activeArr = getActiveEvents(); let ev = activeArr.find(e => e.id === id);
+            if (ev) {
+                document.getElementById('eventName').value = ev.name; document.getElementById('eventType').value = ev.type; toggleGoalInput(); document.getElementById('eventCategory').value = ev.category; document.getElementById('eventAccount').value = ev.account; document.getElementById('eventFlexibility').value = ev.flexibility; document.getElementById('eventAmount').value = ev.amount; document.getElementById('eventDate').value = ev.originalDate; document.getElementById('eventFrequency').value = 'once'; 
+                if(ev.type === 'sinking') document.getElementById('eventGoalTarget').value = ev.goalTarget;
+                deleteEventFromDb(id); window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function togglePaid(id) {
+            if(isSandbox) {
+                let e = sandboxEvents.find(x=>x.id===id); if(e){ e.isPaid=!e.isPaid; if(e.isPaid){e.currentDate=e.originalDate; e.shifted=false;} generateSchedule();}
+            } else {
+                let e = rawEvents.find(x=>x.id===id);
+                if(e) db.collection("events").doc(id).update({ isPaid: !e.isPaid, currentDate: e.originalDate, shifted: false });
+            }
+        }
+
+        function sweepLeftovers() {
+            let startBalance = parseFloat(document.getElementById('startBalance').value) || 0; let activeArr = getActiveEvents(); let today = new Date().toISOString().split('T')[0]; let currentAvailable = startBalance;
+            activeArr.forEach(ev => { if(ev.currentDate <= today || ev.isPaid) currentAvailable += (ev.type === 'income' ? ev.amount : -ev.amount); });
+            if(currentAvailable > 0) {
+                let amountToSweep = prompt(`You currently have $${currentAvailable.toFixed(2)} available. How much do you want to sweep into a goal or extra debt payment?`, currentAvailable.toFixed(2));
+                if(amountToSweep && !isNaN(amountToSweep) && amountToSweep > 0) {
+                    let dest = prompt(`Where is this $${amountToSweep} going? (e.g., Dallas Trip, Discover Card)`);
+                    if(dest) {
+                        let evId = Date.now().toString();
+                        saveEventToDb({ id: evId, name: `🧹 Sweep to: ${dest}`, type: 'expense', category: 'Savings', account: 'joint', flexibility: 'fixed', amount: parseFloat(amountToSweep), originalDate: today, currentDate: today, shifted: false, isPaid: true, goalTarget: 0, projectTag: 'Sweeper' });
+                    }
+                }
+            } else alert("You don't have any unallocated funds available to sweep right now!");
+        }
+
+        // DEBTS
+        function addDebt() { const n=document.getElementById('debtName').value; const b=parseFloat(document.getElementById('debtBalance').value); const a=parseFloat(document.getElementById('debtAPR').value); const p=parseFloat(document.getElementById('debtPay').value); if(!n||isNaN(b)||isNaN(a)||isNaN(p)) return; debts.push({ id: Date.now().toString(), name:n, balance:b, apr:a, pay:p }); document.getElementById('debtName').value=''; document.getElementById('debtBalance').value=''; document.getElementById('debtAPR').value=''; document.getElementById('debtPay').value=''; updateDebtsToDB(); }
+        function deleteDebt(id) { debts = debts.filter(d => d.id !== id); updateDebtsToDB(); }
+        function renderDebts() {
+            const list = document.getElementById('debtList'); list.innerHTML = '';
+            debts.forEach(d => {
+                let r = (d.apr / 100) / 12; let months = (d.pay <= r * d.balance) ? Infinity : -Math.log(1 - (r * d.balance) / d.pay) / Math.log(1 + r);
+                let payoffText = months === Infinity ? '<span style="color:#e74c3c">Will never pay off!</span>' : `${Math.ceil(months)} months to freedom`;
+                list.innerHTML += `<div class="debt-container"><div style="display:flex; justify-content:space-between; font-weight:bold; font-size:13px;"><span>${d.name}</span><span>$${d.balance}</span></div><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Paying $${d.pay}/mo at ${d.apr}% APR</div><div style="font-size:12px; font-weight:bold; color:#e67e22;">⏱ ${payoffText}</div><button onclick="deleteDebt('${d.id}')" style="background:transparent; color:#e74c3c; border:none; padding:0; text-align:left; font-size:10px; margin-top:5px; cursor:pointer;">Remove</button></div>`;
+            });
+        }
+
+        // ACCOUNTS
+        function openAccountModal() { document.getElementById('accountModal').style.display = 'flex'; renderAccountList(); }
+        function renderAccountList() { const list = document.getElementById('accountListContainer'); list.innerHTML = ''; customAccounts.forEach(acc => { list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:5px 0;"><span><span class="badge" style="background:${acc.color}; color:white;">${acc.name}</span></span><button onclick="deleteCustomAccount('${acc.id}')" style="background:#e74c3c; padding:2px 5px; width:auto; font-size:10px; border:none; color:white; border-radius:3px;">Del</button></div>`; }); }
+        function addCustomAccount() { const n = document.getElementById('newAccName').value.trim(); const c = document.getElementById('newAccColor').value; if(!n) return; customAccounts.push({ id: 'acc_' + Date.now().toString(), name:n, color:c }); document.getElementById('newAccName').value = ''; renderAccountList(); updateAccountsToDB(); }
+        function deleteCustomAccount(id) { if(getActiveEvents().some(ev => ev.account === id)) { alert("Account in use!"); return; } customAccounts = customAccounts.filter(acc => acc.id !== id); renderAccountList(); updateAccountsToDB(); }
+        function refreshAccountDropdown() { const select = document.getElementById('eventAccount'); let val = select.value; select.innerHTML = ''; customAccounts.forEach(acc => { select.innerHTML += `<option value="${acc.id}">${acc.name}</option>`; }); if(customAccounts.some(acc => acc.id === val)) select.value = val; }
+
+        // RENDER LOGIC
+        function analyzeInsightsAndStreaks(events) {
+            let today = new Date().toISOString().split('T')[0]; let todayD = new Date();
+            let lastFlexDate = null;
+            events.forEach(e => { if(e.type === 'expense' && e.flexibility === 'flexible' && e.currentDate <= today && e.isPaid) { let eDate = new Date(e.currentDate + 'T00:00:00'); if(!lastFlexDate || eDate > lastFlexDate) lastFlexDate = eDate; } });
+            let streak = lastFlexDate ? Math.floor((todayD - lastFlexDate) / (1000*60*60*24)) : 5;
+            document.getElementById('streakDays').innerText = Math.max(0, streak);
+            document.getElementById('streakCounter').style.display = streak > 0 ? 'flex' : 'none';
+
+            let insights = []; let currMonth = today.substring(0,7);
+            let subTotal = events.filter(e => e.category === 'Subscriptions' && e.currentDate.startsWith(currMonth) && e.isPaid).reduce((a,b)=>a+b.amount,0);
+            if(subTotal > 50) insights.push(`⚠️ You've spent $${subTotal} on subscriptions this month.`);
+            let petTotal = events.filter(e => e.category === 'Pets' && e.currentDate.startsWith(currMonth) && e.isPaid).reduce((a,b)=>a+b.amount,0);
+            if(petTotal > 100) insights.push(`🐶 Pet expenses are over $100 this month. Keep Bailey and Harley happy!`);
+
+            const iBox = document.getElementById('insightsBox'); const iList = document.getElementById('insightsList'); iList.innerHTML = '';
+            if(insights.length > 0) { iBox.style.display = 'block'; insights.forEach(i => iList.innerHTML += `<li style="margin-bottom:5px;">${i}</li>`); } else iBox.style.display = 'none';
+        }
+
+        function generateSchedule() {
+            let bal = parseFloat(document.getElementById('startBalance').value) || 0; let a = getActiveEvents();
+            let opt = false; let safe = 0;
+            // Map processing array so we don't mutate DB objects directly here
+            let processingArr = JSON.parse(JSON.stringify(a));
+            processingArr.forEach(e => { if(!e.isPaid) { e.currentDate = e.originalDate; e.shifted = false; } });
+
+            while(!opt && safe < 100) {
+                opt = true;
+                processingArr.sort((x, y) => { let d = new Date(x.currentDate) - new Date(y.currentDate); return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d; });
+                let b = bal;
+                for(let i=0; i<processingArr.length; i++) {
+                    let e = processingArr[i]; b += (e.type==='income'?e.amount:-e.amount);
+                    if(b < 0 && e.type==='expense' && e.flexibility==='flexible' && !e.isPaid) {
+                        let nx = null; for(let j=0; j<processingArr.length; j++) { if(processingArr[j].type==='income' && new Date(processingArr[j].currentDate) > new Date(e.currentDate)) { nx=processingArr[j].currentDate; break; } }
+                        if(nx) { e.currentDate=nx; e.shifted=true; opt=false; break; }
+                    }
+                }
+                safe++;
+            }
+            renderTable(processingArr, bal); if(processingArr.length>0) renderCalendar(processingArr, bal); else document.getElementById('calendarContainer').style.display='none';
+            renderGoals(processingArr); updateAnalytics(processingArr); calculateSubBurnRate(processingArr); analyzeInsightsAndStreaks(processingArr);
+        }
+
+        function renderTable(events, bal) {
+            const tb=document.querySelector('#scheduleTable tbody'); tb.innerHTML=''; let b=bal;
+            events.forEach(e=>{
+                b+=(e.type==='income'?e.amount:-e.amount); const tr=document.createElement('tr');
+                if(e.isPaid) tr.classList.add('is-paid'); else if(b<0) tr.classList.add('danger'); else if(e.shifted) tr.classList.add('shifted');
+                let fb=e.flexibility==='flexible'?'<span class="badge badge-flex">Flex</span>':''; let sb=e.type==='sinking'?'<span class="badge badge-sinking">Goal</span>':''; let pb=e.projectTag?`<span class="badge badge-project">📁 ${e.projectTag}</span>`:'';
+                let accData=customAccounts.find(a=>a.id===e.account); let ab=accData?`<span class="badge" style="background:${accData.color}; color:white;">${accData.name}</span>`:'';
+                
+                let receiptBtn = e.receiptUrl ? `<a href="${e.receiptUrl}" target="_blank" class="btn-icon" style="background:#2ecc71; color:white; text-decoration:none; padding:4px 8px; font-size:12px; border-radius:3px;" title="View Receipt">📄</a>` : `<button class="btn-icon" style="background:#bdc3c7; color:#333; font-size:12px; padding:4px 8px;" onclick="uploadReceipt('${e.id}')" title="Attach Receipt">📎</button>`;
+
+                tr.innerHTML=`<td style="text-align:center;"><input type="checkbox" ${e.isPaid?'checked':''} onchange="togglePaid('${e.id}')"></td><td>${e.currentDate}</td><td><strong>${e.name}</strong><br>${ab}${fb}${sb}${pb}</td><td class="${e.type==='income'?'income-text':''}">${e.type==='income'?'+':'-'}$${e.amount.toFixed(2)}</td><td><strong>$${b.toFixed(2)}</strong></td><td class="action-btns">${receiptBtn}<button class="btn-edit" onclick="editEvent('${e.id}')" title="Edit">✎</button><button class="btn-delete" onclick="deleteEventFromDb('${e.id}')" title="Delete">X</button></td>`;
+                tb.appendChild(tr);
+            });
+        }
+
+        // Helpers (UI/Misc)
+        function toggleGoalInput() { document.getElementById('goalTargetContainer').style.display = document.getElementById('eventType').value === 'sinking' ? 'flex' : 'none'; }
+        function addDays(ds, d) { let nd = new Date(ds + 'T00:00:00'); nd.setDate(nd.getDate() + d); return nd.toISOString().split('T')[0]; }
+        function addMonths(ds, m) { let nd = new Date(ds + 'T00:00:00'); nd.setMonth(nd.getMonth() + m); return nd.toISOString().split('T')[0]; }
+        function toggleTheme() { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); localStorage.setItem('budgetAppTheme', document.body.getAttribute('data-theme')); if(rawEvents.length > 0) updateAnalytics(getActiveEvents()); }
+        function loadTheme() { if(localStorage.getItem('budgetAppTheme') === 'dark') document.body.setAttribute('data-theme', 'dark'); }
+        function toggleSandbox() { isSandbox = !isSandbox; document.getElementById('sandboxBanner').style.display = isSandbox ? 'block' : 'none'; document.getElementById('sandboxBtn').innerText = isSandbox ? '🛑 Exit Sandbox' : '🧪 Sandbox Mode'; document.getElementById('sandboxBtn').style.backgroundColor = isSandbox ? '#c0392b' : '#e67e22'; if(isSandbox) sandboxEvents = JSON.parse(JSON.stringify(rawEvents)); generateSchedule(); }
+        function toggleCalendarView() { calViewMode = calViewMode === 'month' ? 'week' : 'month'; document.getElementById('toggleViewBtn').innerText = calViewMode === 'month' ? 'Switch to Weekly' : 'Switch to Monthly'; generateSchedule(); }
+        
+        function calculateSubBurnRate(events) { let subs = {}; events.forEach(e => { if(e.category === 'Subscriptions') { if(!subs[e.name]) subs[e.name] = e.amount; } }); let total = Object.values(subs).reduce((a,b)=>a+b, 0); document.getElementById('subBurnRate').innerText = `$${total.toFixed(2)}`; }
+        function showYearInReview() { let a = getActiveEvents(); let catTotals = {}; let totalSaved = 0; let totalDebt = 0; let currentYear = new Date().getFullYear().toString(); a.forEach(e => { if(e.isPaid && e.currentDate.startsWith(currentYear)) { if(e.type === 'expense' && e.category !== 'Income' && e.category !== 'Savings') { catTotals[e.category] = (catTotals[e.category]||0) + e.amount; } if(e.type === 'sinking') totalSaved += e.amount; if(e.projectTag === 'Sweeper' || e.name.toLowerCase().includes('card') || e.name.toLowerCase().includes('debt')) totalDebt += e.amount; } }); let topCat = "No Data Yet"; let topAmt = 0; for(let [cat, amt] of Object.entries(catTotals)) { if(amt > topAmt) { topAmt = amt; topCat = cat; } } document.getElementById('wrapTopCat').innerText = `${topCat} ($${topAmt.toFixed(0)})`; document.getElementById('wrapSaved').innerText = `$${totalSaved.toFixed(0)}`; document.getElementById('wrapDebt').innerText = `$${totalDebt.toFixed(0)}`; document.getElementById('wrappedModal').style.display = 'flex'; }
+        function exportCSV() { let activeArr = getActiveEvents(); let csv = "Paid,Date,Name,Type,Category,Project,Account,Amount,Auto-Shifted\n"; activeArr.forEach(e => { let accName = customAccounts.find(a => a.id === e.account)?.name || e.account; csv += `${e.isPaid},${e.currentDate},"${e.name}",${e.type},"${e.category}","${e.projectTag||''}",${accName},${e.amount},${e.shifted}\n`; }); let blob = new Blob([csv], { type: 'text/csv' }); let url = window.URL.createObjectURL(blob); let a = document.createElement('a'); a.setAttribute('href', url); a.setAttribute('download', 'Household_Budget_Export.csv'); a.click(); }
+        
+        function renderCalendar(events, bal) { document.getElementById('calendarContainer').style.display='block'; const grid=document.getElementById('calendarGrid'); grid.innerHTML=''; const mNames=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; let byDate={}; events.forEach(e=>{ if(!byDate[e.currentDate]) byDate[e.currentDate]=[]; byDate[e.currentDate].push(e); }); let cur = bal; if(calViewMode==='month'){ document.getElementById('calendarMonthLabel').innerText=`${mNames[currentCalMonth]} ${currentCalYear}`; const fd=new Date(currentCalYear, currentCalMonth, 1).getDay(); const dim=new Date(currentCalYear, currentCalMonth+1, 0).getDate(); events.forEach(e=>{ let d=new Date(e.currentDate+'T00:00:00'); if(d.getFullYear()<currentCalYear || (d.getFullYear()===currentCalYear && d.getMonth()<currentCalMonth)) cur+=(e.type==='income'?e.amount:-e.amount); }); for(let i=0;i<fd;i++) grid.innerHTML+=`<div class="calendar-day empty"></div>`; for(let day=1;day<=dim;day++) { let dStr=`${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`; let evs=byDate[dStr]||[]; let h=''; evs.forEach(e=>{ cur+=(e.type==='income'?e.amount:-e.amount); let c=e.isPaid?'cal-is-paid':(e.type==='income'?'cal-income':(e.shifted?'cal-shifted':(e.type==='sinking'?'cal-sinking':'cal-expense'))); h+=`<div class="cal-event ${c}"><strong>${e.type==='income'?'+':'-'}$${e.amount}</strong> ${e.name}</div>`; }); grid.innerHTML+=`<div class="calendar-day"><div class="day-number">${day}</div>${h}<div class="cal-eod-balance ${cur<0?'cal-eod-negative':''}">${cur.toFixed(2)}</div></div>`; } } else { let we=new Date(currentWeekStart); we.setDate(we.getDate()+6); document.getElementById('calendarMonthLabel').innerText=`Week of ${mNames[currentWeekStart.getMonth()]} ${currentWeekStart.getDate()}`; events.forEach(e=>{ let d=new Date(e.currentDate+'T00:00:00'); if(d<currentWeekStart) cur+=(e.type==='income'?e.amount:-e.amount); }); for(let i=0;i<7;i++) { let dD=new Date(currentWeekStart); dD.setDate(dD.getDate()+i); let dStr=`${dD.getFullYear()}-${String(dD.getMonth()+1).padStart(2,'0')}-${String(dD.getDate()).padStart(2,'0')}`; let evs=byDate[dStr]||[]; let h=''; evs.forEach(e=>{ cur+=(e.type==='income'?e.amount:-e.amount); let c=e.isPaid?'cal-is-paid':(e.type==='income'?'cal-income':(e.shifted?'cal-shifted':(e.type==='sinking'?'cal-sinking':'cal-expense'))); h+=`<div class="cal-event ${c}"><strong>${e.type==='income'?'+':'-'}$${e.amount}</strong> ${e.name}</div>`; }); grid.innerHTML+=`<div class="calendar-day" style="min-height: 120px;"><div class="day-number">${mNames[dD.getMonth()]} ${dD.getDate()}</div>${h}<div class="cal-eod-balance ${cur<0?'cal-eod-negative':''}">${cur.toFixed(2)}</div></div>`; } } }
+        function navigateCalendar(dir) { if(calViewMode === 'month') { currentCalMonth += dir; if(currentCalMonth>11){currentCalMonth=0; currentCalYear++;} if(currentCalMonth<0){currentCalMonth=11; currentCalYear--;} currentWeekStart=new Date(currentCalYear, currentCalMonth, 1); currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); } else { currentWeekStart.setDate(currentWeekStart.getDate() + (dir*7)); currentCalMonth=currentWeekStart.getMonth(); currentCalYear=currentWeekStart.getFullYear(); } generateSchedule(); }
+        function renderGoals(events) { let g={}; events.forEach(e=>{ if(e.type==='sinking'&&e.goalTarget>0){ if(!g[e.name])g[e.name]={t:e.goalTarget,s:0}; if(e.isPaid)g[e.name].s+=e.amount; } }); const list=document.getElementById('goalsList'); list.innerHTML=''; if(Object.keys(g).length===0) return; for(const [n,d] of Object.entries(g)){ let p=Math.min((d.s/d.t)*100,100).toFixed(0); list.innerHTML+=`<div class="goal-container"><div class="goal-header"><span>${n}</span><span>$${d.s}/$${d.t} (${p}%)</span></div><div class="goal-track"><div class="goal-fill" style="width:${p}%;"></div></div></div>`; } }
+        function updateAnalytics(events) { let t={}; events.forEach(e=>{ if(e.type!=='income'){ t[e.category]=(t[e.category]||0)+e.amount; } }); let d=document.body.getAttribute('data-theme')==='dark'; Chart.defaults.color=d?'#e9e9eb':'#333'; if(myChart) myChart.destroy(); myChart=new Chart(document.getElementById('spendingChart').getContext('2d'),{type:'doughnut',data:{labels:Object.keys(t),datasets:[{data:Object.values(t),backgroundColor:['#e74c3c','#3498db','#f1c40f','#9b59b6','#e67e22','#1abc9c','#34495e'],borderWidth:d?0:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}}); }
+
+        // MOCK DATA GENERATOR (Writes to DB)
+        function loadExampleData() {
+            if(!confirm("Warning: This will overwrite your live Firebase database with example data. Are you sure?")) return;
+            document.getElementById('startBalance').value=800; updateBalanceToDB();
+            customAccounts = [ { id: 'joint', name: 'Joint Checking', color: '#9b59b6' }, { id: 'steph', name: 'Stephanie', color: '#e67e22' }, { id: 'ray', name: 'Ray', color: '#34495e' } ]; updateAccountsToDB();
+            
+            // Clear current events to replace
+            rawEvents.forEach(e => db.collection("events").doc(e.id).delete());
+            
+            let d15="2026-03-15"; let d20="2026-03-20"; let d24="2026-03-24"; let d25="2026-03-25"; let d27="2026-03-27";
+            addRecurringEvents("Ray's Paycheck", "income", "Income", "ray", "fixed", 1600, d20, "biweekly", 0, "");
+            addRecurringEvents("Stephanie's Paycheck", "income", "Income", "steph", "fixed", 1500, d27, "biweekly", 0, "");
+            addRecurringEvents("Rent/Mortgage", "expense", "Housing & Utilities", "joint", "fixed", 1800, "2026-04-01", "monthly", 0, "");
+            addRecurringEvents("Electric Bill", "expense", "Housing & Utilities", "joint", "fixed", 120, d25, "monthly", 0, "");
+            addRecurringEvents("Crunchyroll", "expense", "Subscriptions", "steph", "fixed", 8, d24, "monthly", 0, "");
+            addRecurringEvents("ESO Subscription", "expense", "Subscriptions", "joint", "fixed", 15, d25, "monthly", 0, "");
+            addRecurringEvents("Publix / Walmart", "expense", "Groceries & Dining", "joint", "flexible", 180, d20, "weekly", 0, "");
+            addRecurringEvents("Harley & Bailey Vet/Food", "expense", "Pets", "joint", "flexible", 110, d24, "monthly", 0, "");
+            addRecurringEvents("Bambu Lab 3D Filament", "expense", "Hobbies & Shopping", "steph", "flexible", 60, d25, "once", 0, "Cosplay Build");
+            addRecurringEvents("Torrid / Shopping", "expense", "Hobbies & Shopping", "steph", "flexible", 100, d27, "once", 0, "");
+            addRecurringEvents("Dallas Trip Fund", "sinking", "Savings", "joint", "fixed", 100, d20, "biweekly", 1200, "");
+            
+            debts = [{ id: 'd1', name: 'Discover Card', balance: 1500, apr: 22.99, pay: 100 }]; updateDebtsToDB();
+            setTimeout(() => { alert("Database populated!"); }, 2000); // Give Firebase a sec
+        }
+    </script>
+
+</body>
+</html>
