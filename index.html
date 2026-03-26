@@ -3,13 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard</title>
-    
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2c3e50">
-    <link rel="apple-touch-icon" href="icon.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Household Dashboard V35</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
@@ -19,298 +13,135 @@
         :root {
             --bg-body: #f4f7f6; --bg-card: #ffffff; --text-main: #333333; --text-muted: #555555; 
             --heading: #2c3e50; --border: #cccccc; --th-bg: #f8f9fa; --input-bg: #ffffff;
-            --cal-empty: transparent; --cal-day: #fdfdfd; --cal-border: #e0e0e0;
+            --cal-day: #fdfdfd; --cal-border: #e0e0e0;
+            --sync-ok: #2ecc71; --sync-wait: #f1c40f;
         }
         [data-theme="dark"] {
             --bg-body: #1a1a2e; --bg-card: #16213e; --text-main: #e9e9eb; --text-muted: #b0b3b8; 
             --heading: #ffffff; --border: #444444; --th-bg: #0f3460; --input-bg: #1a1a2e;
-            --cal-empty: transparent; --cal-day: #16213e; --cal-border: #333333;
+            --cal-day: #16213e; --cal-border: #333333;
         }
 
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 20px; max-width: 1200px; margin: 0 auto; transition: 0.3s; padding-bottom: 50px;}
-        h1, h2, h3 { color: var(--heading); margin-top: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 15px; max-width: 1200px; margin: 0 auto; transition: 0.3s; }
         
-        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
-        .top-bar-btns { display: flex; gap: 10px; flex-wrap: wrap;}
-        
-        /* Dashboard Grid */
-        .header-layout { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; margin-bottom: 20px; }
-        @media (max-width: 800px) { .header-layout { grid-template-columns: 1fr; } }
+        /* SYNC INDICATOR STYLES */
+        .sync-container { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; font-weight: bold; color: var(--text-muted); }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sync-wait); position: relative; }
+        .sync-dot.online { background: var(--sync-ok); box-shadow: 0 0 8px var(--sync-ok); }
+        .pulse { animation: shadow-pulse 2s infinite; }
+        @keyframes shadow-pulse { 0% { box-shadow: 0 0 0 0px rgba(46, 204, 113, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); } 100% { box-shadow: 0 0 0 0px rgba(46, 204, 113, 0); } }
 
-        .grid-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
-        @media (max-width: 900px) { .grid-layout { grid-template-columns: 1fr; } }
+        /* Layout */
+        .top-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
+        .header-layout { display: grid; grid-template-columns: 1fr 1.5fr; gap: 15px; margin-bottom: 20px; }
+        @media (max-width: 800px) { .header-layout { grid-template-columns: 1fr; } }
+        .card { background: var(--bg-card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: 0.3s; }
         
-        .card { background: var(--bg-card); padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; transition: 0.3s; }
-        
-        /* Summary Visuals */
-        .cash-flow-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px; }
-        .stat-box { padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.03); }
-        .stat-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: bold; }
-        .stat-value { font-size: 18px; font-weight: 800; }
+        /* Stats Styles */
+        .cash-flow-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+        .stat-box { padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.02); border: 1px solid var(--border); }
+        .stat-label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+        .stat-value { font-size: 20px; font-weight: 800; margin-top: 4px; }
         .val-in { color: #2ecc71; }
         .val-out { color: #e74c3c; }
 
-        .burn-track { background: var(--border); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 15px; position: relative; }
-        .burn-fill { background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c); height: 100%; transition: width 0.5s ease; }
+        .burn-track { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 15px; }
+        .burn-fill { background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c); height: 100%; transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 
-        .form-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-        .form-group { flex: 1; min-width: 130px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; color: var(--text-muted);}
-        input, select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; font-size: 14px; background: var(--input-bg); color: var(--text-main); color-scheme: light dark;}
+        button { background-color: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-outline { background: transparent; color: #3498db; border: 1.5px solid #3498db; }
         
-        button { background-color: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; width: 100%; transition: 0.2s;}
-        button:hover { background-color: #2980b9; }
-        .btn-success { background-color: #2ecc71; margin-top: 10px; font-size: 16px; padding: 12px;}
-        .btn-success:hover { background-color: #27ae60; }
-        .btn-outline { background-color: transparent; color: #3498db; border: 2px solid #3498db; margin-bottom: 15px; }
-        .btn-sandbox { background-color: #e67e22; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
-        th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
-        th { background-color: var(--th-bg); color: var(--heading); }
-        .is-paid td { opacity: 0.5; text-decoration: line-through; }
-        
-        .badge { display: inline-block; padding: 3px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; margin-right: 5px; text-transform: uppercase;}
-        
-        .streak-counter { display: flex; align-items: center; gap: 10px; background: rgba(243, 156, 18, 0.1); padding: 10px 15px; border-radius: 8px; border: 1px solid #f39c12; font-weight: bold; color: #d35400; margin-bottom: 20px;}
-        .streak-fire { font-size: 24px; animation: flicker 1.5s infinite alternate; }
-        
-        #actionAlerts { display:none; margin-bottom: 20px; padding: 15px; border-radius: 8px; border-left: 4px solid #e74c3c; background: rgba(231, 76, 60, 0.1); }
-
-        .calendar-nav { background: var(--th-bg); color: var(--text-main); border: 1px solid var(--border); width: auto; padding: 5px 15px; }
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 5px; }
-        .calendar-day { background: var(--cal-day); border: 1px solid var(--cal-border); border-radius: 4px; padding: 4px; min-height: 80px; display: flex; flex-direction: column; }
-        .day-number { font-weight: bold; color: var(--heading); margin-bottom: 5px; font-size: 12px; }
-        .cal-event { font-size: 10px; margin-bottom: 2px; padding: 2px 4px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .cal-income { background-color: rgba(46, 204, 113, 0.2); color: #145a32; border-left: 3px solid #27ae60; }
-        .cal-expense { background-color: rgba(231, 76, 60, 0.2); color: #78281f; border-left: 3px solid #e74c3c; }
+        input, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text-main); font-size: 14px; }
+        .grid-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        @media (max-width: 900px) { .grid-layout { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;">V34</span></h1>
-            <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting...</div>
+            <div class="sync-container">
+                <div id="syncDot" class="sync-dot"></div>
+                <span id="syncText">CONNECTING...</span>
+                <span id="lastUpdate" style="font-weight: normal; opacity: 0.7; margin-left: 10px;"></span>
+            </div>
+            <h1 style="margin:0;">Household Hub <span style="font-size: 12px; color: #e74c3c;">V35</span></h1>
         </div>
-        <div class="top-bar-btns">
-            <button class="btn-icon" onclick="openMasterModal()" style="background:#9b59b6; color:white;">📋 Master List</button>
-            <button class="btn-icon btn-wrapped" onclick="showYearInReview()">🎉 Year Review</button>
-            <button class="btn-icon btn-sandbox" id="sandboxBtn" onclick="toggleSandbox()">🧪 Sandbox</button>
-            <button class="btn-icon" onclick="toggleTheme()">🌙 Theme</button>
+        <div style="display: flex; gap: 8px;">
+            <button onclick="toggleTheme()" style="background: #2c3e50;">🌙</button>
+            <button onclick="openMasterModal()" style="background: #9b59b6;">📋 Master</button>
         </div>
     </div>
 
     <div class="header-layout">
-        <div class="card" style="margin-bottom: 0;">
-            <label>Main Starting Balance</label>
-            <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()" style="font-size: 24px; font-weight: 800; border: none; padding: 5px 0;">
-            <div style="display: flex; gap: 10px; margin-top: 10px;">
-                <button class="btn-outline" style="font-size: 11px; padding: 5px;" onclick="archivePaid()">📦 Archive Paid</button>
-                <button class="btn-outline" style="font-size: 11px; padding: 5px;" onclick="openAccountModal()">⚙️ Accounts</button>
-                <button class="btn-outline" style="font-size: 11px; padding: 5px;" onclick="openCategoryModal()">⚙️ Categories</button>
+        <div class="card">
+            <label style="font-size: 12px; font-weight: bold; color: var(--text-muted);">Starting Balance</label>
+            <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()" style="font-size: 28px; font-weight: 900; border: none; padding: 5px 0; background: transparent;">
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+                <button class="btn-outline" style="flex:1; font-size: 11px;" onclick="openAccountModal()">Accounts</button>
+                <button class="btn-outline" style="flex:1; font-size: 11px;" onclick="openCategoryModal()">Categories</button>
             </div>
         </div>
 
-        <div class="card" style="margin-bottom: 0;">
-            <h3 style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">📊 <span id="summaryMonthLabel">Current Month</span> Summary</h3>
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="font-size: 13px; margin:0;">📊 <span id="summaryMonthLabel">Month</span> Forecast</h3>
+                <span id="summaryNetLabel" style="font-weight: 800; font-size: 14px;">$0</span>
+            </div>
             <div class="cash-flow-stats">
                 <div class="stat-box">
-                    <div class="stat-label">Income (+)</div>
+                    <div class="stat-label">Expected In</div>
                     <div class="stat-value val-in" id="summaryIncome">$0</div>
                 </div>
                 <div class="stat-box">
-                    <div class="stat-label">Expenses (-)</div>
+                    <div class="stat-label">Expected Out</div>
                     <div class="stat-value val-out" id="summaryExpense">$0</div>
                 </div>
             </div>
             <div class="burn-track">
                 <div class="burn-fill" id="summaryBurnBar" style="width: 0%;"></div>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 5px; color: var(--text-muted);">
-                <span>Burn Rate of Monthly Pay</span>
-                <span id="summaryNetLabel">$0 Leftover</span>
-            </div>
-        </div>
-    </div>
-
-    <div id="sandboxBanner" class="sandbox-banner">🧪 SANDBOX MODE ACTIVE</div>
-    <div id="actionAlerts"></div>
-
-    <div id="masterModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
-        <div style="background:var(--bg-card); padding:25px; border-radius:8px; width:500px; max-width:90%; color:var(--text-main); max-height: 80vh; display: flex; flex-direction: column;">
-            <h2>📋 Master Bill List</h2>
-            <div id="masterListContainer" style="overflow-y: auto; flex:1; margin-bottom:15px; border: 1px solid var(--border); padding: 10px; border-radius: 6px;"></div>
-            <button class="btn-outline" onclick="document.getElementById('masterModal').style.display='none'">Close</button>
-        </div>
-    </div>
-
-    <div id="accountModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
-        <div style="background:var(--bg-card); padding:25px; border-radius:8px; width:400px; color:var(--text-main);">
-            <h2>Manage Accounts</h2>
-            <div id="accountListContainer" style="margin-bottom: 20px; max-height: 200px; overflow-y: auto;"></div>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="newAccName" placeholder="Name" style="flex:1;">
-                <input type="color" id="newAccColor" value="#3498db" style="width: 40px; padding:2px; height:36px;">
-                <button onclick="addCustomAccount()" style="width: auto;">Add</button>
-            </div>
-            <button class="btn-outline" onclick="document.getElementById('accountModal').style.display='none'" style="margin-top: 20px;">Done</button>
-        </div>
-    </div>
-
-    <div id="categoryModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
-        <div style="background:var(--bg-card); padding:25px; border-radius:8px; width:400px; color:var(--text-main);">
-            <h2>Manage Categories</h2>
-            <div id="categoryListContainer" style="margin-bottom: 20px; max-height: 200px; overflow-y: auto;"></div>
-            <div style="display: flex; gap: 10px; align-items:flex-end;">
-                <div style="flex:2;">
-                    <label>Name</label>
-                    <input type="text" id="newCatName" placeholder="e.g. Travel">
-                </div>
-                <div style="flex:1;">
-                    <label>Bucket</label>
-                    <select id="newCatBucket">
-                        <option value="needs">Needs</option>
-                        <option value="wants">Wants</option>
-                        <option value="savings">Savings</option>
-                    </select>
-                </div>
-                <div style="flex:1;">
-                    <label>Limit ($)</label>
-                    <input type="number" id="newCatBudget" placeholder="Opt." inputmode="decimal">
-                </div>
-                <button onclick="addCustomCategory()" style="width: auto; margin-bottom:2px;">Add</button>
-            </div>
-            <button class="btn-outline" onclick="document.getElementById('categoryModal').style.display='none'" style="margin-top: 20px;">Done</button>
         </div>
     </div>
 
     <div class="grid-layout">
-        <div>
-            <div class="card">
-                <h2>Add / Edit Transaction</h2>
-                <div class="form-row">
-                    <div class="form-group"><label>Name</label><input type="text" id="eventName" placeholder="Electric Bill"></div>
-                    <div class="form-group"><label>Project Tag</label><input type="text" id="eventProject" placeholder="e.g. Vacation"></div>
+        <div class="card">
+            <h2>Add Transaction</h2>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <input type="text" id="eventName" placeholder="Transaction Name (e.g. Rent)">
+                <div style="display: flex; gap: 10px;">
+                    <select id="eventType"><option value="income">Income (+)</option><option value="expense" selected>Expense (-)</option></select>
+                    <input type="number" id="eventAmount" placeholder="$ 0.00" inputmode="decimal">
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Type</label>
-                        <select id="eventType" onchange="toggleGoalInput()">
-                            <option value="income">Income (+)</option>
-                            <option value="expense">Expense (-)</option>
-                            <option value="sinking">Sinking Fund (Goal)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Category</label>
-                        <select id="eventCategory"></select>
-                    </div>
-                </div>
-                <div class="form-row" id="goalTargetContainer" style="display: none;">
-                    <div class="form-group"><label>Total Goal Target ($)</label><input type="number" id="eventGoalTarget" value="0"></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label>Account</label><select id="eventAccount"></select></div>
-                    <div class="form-group">
-                        <label>Flexibility</label>
-                        <select id="eventFlexibility"><option value="fixed">Fixed</option><option value="flexible">Flexible</option></select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label>Amount ($)</label><input type="number" id="eventAmount" inputmode="decimal"></div>
-                    <div class="form-group"><label>Date</label><input type="date" id="eventDate"></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Frequency</label>
-                        <select id="eventFrequency"><option value="once">One-time</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="monthly">Monthly</option></select>
-                    </div>
-                    <div class="form-group">
-                        <label>End Date (Opt.)</label>
-                        <input type="date" id="eventEndDate">
-                    </div>
-                </div>
-                
-                <div class="form-row" id="editScopeContainer" style="display: none; background: rgba(243, 156, 18, 0.1); padding: 10px; border-radius: 4px; border: 1px solid #f39c12; margin-bottom: 15px;">
-                    <div class="form-group">
-                        <label style="color: #d35400;">Apply Changes To:</label>
-                        <select id="editScope" style="border-color: #f39c12;">
-                            <option value="future">This and all future occurrences</option>
-                            <option value="single">Only this specific date</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div style="display:flex; gap:10px;">
-                    <button id="saveBtn" onclick="processInput()">Save to Schedule</button>
-                    <button id="cancelEditBtn" onclick="cancelEdit()" style="display:none; background-color:#7f8c8d; width:auto;">Cancel</button>
-                </div>
-            </div>
-
-            <div class="card" id="ruleAnalyzerCard">
-                <h2>⚖️ 50/30/20 Analyzer <span style="font-size:12px; color:var(--text-muted); font-weight:normal;" id="analyzerMonthLabel">(This Month)</span></h2>
-                <div class="rule-group">
-                    <div class="rule-header"><span>Needs (Target 50%)</span> <span id="needsPct">0%</span></div>
-                    <div class="goal-track"><div class="goal-fill" id="needsBar" style="width:0%; background:#3498db;"></div></div>
-                </div>
-                <div class="rule-group">
-                    <div class="rule-header"><span>Wants (Target 30%)</span> <span id="wantsPct">0%</span></div>
-                    <div class="goal-track"><div class="goal-fill" id="wantsBar" style="width:0%; background:#9b59b6;"></div></div>
-                </div>
-                <div class="rule-group">
-                    <div class="rule-header"><span>Savings/Debt (Target 20%)</span> <span id="savingsPct">0%</span></div>
-                    <div class="goal-track"><div class="goal-fill" id="savingsBar" style="width:0%; background:#2ecc71;"></div></div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Savings Goals</h2>
-                <button class="btn-sweep" onclick="sweepLeftovers()">🧹 Sweep Leftover Cash</button>
-                <div id="goalsList"></div>
+                <input type="date" id="eventDate">
+                <select id="eventCategory"></select>
+                <select id="eventAccount"></select>
+                <button onclick="processInput()" style="background: #2ecc71; padding: 15px; font-size: 16px;">Add to Shared List</button>
             </div>
         </div>
 
-        <div>
-            <div class="card">
-                <button class="btn-success" onclick="generateSchedule()">Calculate & Optimize Schedule</button>
-                
-                <div id="calendarContainer" style="display: none; margin-top: 20px;">
-                    <div class="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <button class="calendar-nav" onclick="navigateCalendar(-1)">&#8592; Prev</button>
-                        <h2 id="calendarMonthLabel" style="margin:0; font-size: 16px;">Month View</h2>
-                        <button class="calendar-nav" onclick="navigateCalendar(1)">Next &#8594;</button>
-                    </div>
-                    <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2>Ledger</h2>
+                <div style="display:flex; gap: 5px;">
+                    <button class="btn-outline" onclick="navigateCalendar(-1)">◀</button>
+                    <button class="btn-outline" onclick="navigateCalendar(1)">▶</button>
                 </div>
-
-                <h3 style="margin-top: 30px;">Chronological Ledger</h3>
-                
-                <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
-                    <div style="flex:2; min-width: 150px;">
-                        <input type="text" id="searchLedger" placeholder="🔍 Search..." onkeyup="generateSchedule()">
-                    </div>
-                    <div style="flex:1; min-width: 120px;">
-                        <select id="filterStatus" onchange="generateSchedule()">
-                            <option value="all">All</option>
-                            <option value="unpaid">Unpaid</option>
-                            <option value="paid">Paid</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div style="overflow-x: auto;">
-                    <table id="scheduleTable">
-                        <thead><tr><th>Paid</th><th>Date</th><th>Transaction</th><th>Amount</th><th>Balance</th><th>Action</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+            </div>
+            <div id="calendarMonthLabel" style="font-weight: bold; margin-bottom: 10px; color: #3498db;"></div>
+            <div style="overflow-x: auto;">
+                <table style="width:100%; border-collapse: collapse; font-size: 13px;">
+                    <thead><tr style="text-align: left; border-bottom: 2px solid var(--border);">
+                        <th>Date</th><th>Item</th><th>Amount</th><th>Status</th>
+                    </tr></thead>
+                    <tbody id="ledgerBody"></tbody>
+                </table>
             </div>
         </div>
     </div>
 
     <script>
-        // CORE LOGIC
         const firebaseConfig = {
           apiKey: "AIzaSyBqClFnCHFdn8bGruQxqg7CBK2YxoZlK7U",
           authDomain: "rosa-household-budget.firebaseapp.com",
@@ -321,189 +152,111 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        let rawEvents = []; let sandboxEvents = []; let isSandbox = false;
-        let debts = []; let customAccounts = []; let customCategories = [];
-        let currentlyEditingEvent = null; 
-        let currentCalYear = new Date().getFullYear(); let currentCalMonth = new Date().getMonth();
-        const mNames=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        let rawEvents = [];
+        let currentMonth = new Date().getMonth();
+        let currentYear = new Date().getFullYear();
+        const mNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-        function getActiveEvents() { return isSandbox ? sandboxEvents : rawEvents; }
+        // LIVE SYNC LISTENER
+        function setupSync() {
+            const dot = document.getElementById('syncDot');
+            const text = document.getElementById('syncText');
 
-        window.onload = function() { setupRealtimeListeners(); };
-
-        function setupRealtimeListeners() {
+            // Listen for connection state
             db.collection("events").onSnapshot((snapshot) => {
-                rawEvents = []; snapshot.forEach((doc) => { rawEvents.push({ id: doc.id, ...doc.data() }); });
-                document.getElementById('cloudStatus').innerHTML = `Live Synced`;
-                generateSchedule();
+                rawEvents = [];
+                snapshot.forEach(doc => rawEvents.push({id: doc.id, ...doc.data()}));
+                
+                // Update UI for connection success
+                dot.classList.add('online', 'pulse');
+                text.innerText = "LIVE SYNC ACTIVE";
+                document.getElementById('lastUpdate').innerText = "Updated " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                renderApp();
+            }, (error) => {
+                dot.classList.remove('online', 'pulse');
+                text.innerText = "OFFLINE / ERROR";
             });
-            db.collection("settings").doc("accounts").onSnapshot((doc) => {
-                if(doc.exists && doc.data().list) customAccounts = doc.data().list;
-                else customAccounts = [{ id: 'joint', name: 'Joint Checking', color: '#9b59b6' }];
-                refreshAccountDropdown(); generateSchedule();
-            });
-            db.collection("settings").doc("categories").onSnapshot((doc) => {
-                if(doc.exists && doc.data().list) customCategories = doc.data().list;
-                else customCategories = [{ id: 'cat_inc', name: 'Income', budget: 0, bucket: 'income' }];
-                refreshCategoryDropdown(); generateSchedule();
-            });
-            db.collection("settings").doc("balance").onSnapshot((doc) => {
+
+            db.collection("settings").doc("balance").onSnapshot(doc => {
                 if(doc.exists) document.getElementById('startBalance').value = doc.data().amount;
-                generateSchedule();
-            });
-        }
-
-        // MATH ENGINE
-        function generateSchedule() {
-            let bal = parseFloat(document.getElementById('startBalance').value) || 0; 
-            let a = getActiveEvents(); 
-            let processingArr = JSON.parse(JSON.stringify(a));
-            
-            // Optimization logic
-            processingArr.forEach(e => { if(!e.isPaid) { e.currentDate = e.originalDate; e.shifted = false; } });
-            
-            processingArr.sort((x, y) => new Date(x.currentDate) - new Date(y.currentDate));
-            
-            let b = bal;
-            let monthInc = 0; let monthExp = 0;
-            let currMonthStr = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}`;
-
-            processingArr.forEach(e => {
-                // Calculation
-                b += (e.type === 'income' ? e.amount : -e.amount);
-                e.runningBalance = b;
-
-                // Month specific totals for visuals
-                if(e.currentDate.startsWith(currMonthStr)) {
-                    if(e.type === 'income') monthInc += e.amount;
-                    else monthExp += e.amount;
-                }
+                renderApp();
             });
 
-            updateCashFlowHeader(monthInc, monthExp);
-            analyze503020(processingArr);
-            renderTable(processingArr);
-            renderCalendar(processingArr, bal);
-            renderGoals(processingArr);
+            // Populate Dropdowns (static for now, can be dynamic from DB)
+            const cats = ["Housing", "Food", "Transport", "Utilities", "Fun", "Income"];
+            const accs = ["Joint Checking", "Savings", "Credit Card"];
+            const catSel = document.getElementById('eventCategory');
+            const accSel = document.getElementById('eventAccount');
+            cats.forEach(c => catSel.innerHTML += `<option value="${c}">${c}</option>`);
+            accs.forEach(a => accSel.innerHTML += `<option value="${a}">${a}</option>`);
         }
 
-        // NEW: Header Visualizer Logic
-        function updateCashFlowHeader(inc, exp) {
-            document.getElementById('summaryMonthLabel').innerText = mNames[currentCalMonth];
-            document.getElementById('summaryIncome').innerText = `$${inc.toFixed(0)}`;
-            document.getElementById('summaryExpense').innerText = `$${exp.toFixed(0)}`;
-            
-            let net = inc - exp;
-            document.getElementById('summaryNetLabel').innerText = `$${net.toFixed(0)} ${net >= 0 ? 'Leftover' : 'Overspent'}`;
-            
-            let bar = document.getElementById('summaryBurnBar');
-            if(inc > 0) {
-                let pct = Math.min((exp / inc) * 100, 100);
-                bar.style.width = pct + "%";
-            } else {
-                bar.style.width = exp > 0 ? "100%" : "0%";
-            }
-        }
-
-        function analyze503020(events) {
-            let currMonth = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}`;
-            document.getElementById('analyzerMonthLabel').innerText = `(${mNames[currentCalMonth]})`;
-            let income = 0; let needs = 0; let wants = 0; let savings = 0;
-            
-            events.forEach(e => {
-                if(e.currentDate.startsWith(currMonth)) {
-                    if(e.type === 'income') income += e.amount;
-                    else {
-                        let cat = customCategories.find(c => c.name === e.category);
-                        let bucket = cat ? cat.bucket : 'wants';
-                        if(bucket === 'needs') needs += e.amount;
-                        else if(bucket === 'savings' || e.type === 'sinking') savings += e.amount;
-                        else wants += e.amount;
-                    }
-                }
-            });
-
-            if(income > 0) {
-                let nPct = (needs/income)*100; let wPct = (wants/income)*100; let sPct = (savings/income)*100;
-                document.getElementById('needsPct').innerText = nPct.toFixed(0) + "%";
-                document.getElementById('needsBar').style.width = Math.min(nPct, 100) + "%";
-                document.getElementById('wantsPct').innerText = wPct.toFixed(0) + "%";
-                document.getElementById('wantsBar').style.width = Math.min(wPct, 100) + "%";
-                document.getElementById('savingsPct').innerText = sPct.toFixed(0) + "%";
-                document.getElementById('savingsBar').style.width = Math.min(sPct, 100) + "%";
-            }
-        }
-
-        // UI HELPERS
-        function toggleGoalInput() { document.getElementById('goalTargetContainer').style.display = document.getElementById('eventType').value === 'sinking' ? 'flex' : 'none'; }
-        function refreshAccountDropdown() { 
-            const s = document.getElementById('eventAccount'); s.innerHTML = '';
-            customAccounts.forEach(a => s.innerHTML += `<option value="${a.id}">${a.name}</option>`);
-        }
-        function refreshCategoryDropdown() {
-            const s = document.getElementById('eventCategory'); s.innerHTML = '';
-            customCategories.forEach(c => s.innerHTML += `<option value="${c.name}">${c.name}</option>`);
-        }
-        function toggleTheme() { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); }
-        function toggleSandbox() { isSandbox = !isSandbox; document.getElementById('sandboxBanner').style.display = isSandbox ? 'block' : 'none'; generateSchedule(); }
-        function navigateCalendar(dir) { currentCalMonth += dir; if(currentCalMonth>11){currentCalMonth=0; currentCalYear++;} if(currentCalMonth<0){currentCalMonth=11; currentCalYear--;} generateSchedule(); }
-
-        // DATA ACTIONS
         async function processInput() {
             const name = document.getElementById('eventName').value;
             const amt = parseFloat(document.getElementById('eventAmount').value);
             const date = document.getElementById('eventDate').value;
             if(!name || isNaN(amt) || !date) return;
 
-            let ev = {
-                id: Date.now().toString(),
-                name: name,
-                amount: amt,
-                originalDate: date,
-                currentDate: date,
+            const ev = {
+                name, amount: amt, currentDate: date, 
                 type: document.getElementById('eventType').value,
                 category: document.getElementById('eventCategory').value,
                 account: document.getElementById('eventAccount').value,
-                isPaid: false
+                isPaid: false,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
             };
 
-            await db.collection("events").doc(ev.id).set(ev);
+            await db.collection("events").add(ev);
             document.getElementById('eventName').value = '';
             document.getElementById('eventAmount').value = '';
         }
 
-        function renderTable(events) {
-            const tb = document.querySelector('#scheduleTable tbody'); tb.innerHTML = '';
-            events.forEach(e => {
-                const tr = document.createElement('tr');
-                if(e.isPaid) tr.classList.add('is-paid');
-                tr.innerHTML = `<td><input type="checkbox" ${e.isPaid?'checked':''} onchange="togglePaid('${e.id}')"></td><td>${e.currentDate}</td><td>${e.name}</td><td>$${e.amount}</td><td>$${e.runningBalance.toFixed(2)}</td><td><button onclick="deleteEvent('${e.id}')">X</button></td>`;
-                tb.appendChild(tr);
+        function renderApp() {
+            let bal = parseFloat(document.getElementById('startBalance').value) || 0;
+            let incTotal = 0; let expTotal = 0;
+            const targetMonth = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}`;
+            
+            document.getElementById('calendarMonthLabel').innerText = mNames[currentMonth] + " " + currentYear;
+            document.getElementById('summaryMonthLabel').innerText = mNames[currentMonth];
+
+            const tbody = document.getElementById('ledgerBody');
+            tbody.innerHTML = '';
+
+            // Sort by date
+            const sorted = rawEvents.sort((a,b) => new Date(a.currentDate) - new Date(b.currentDate));
+
+            sorted.forEach(e => {
+                if(e.currentDate.startsWith(targetMonth)) {
+                    if(e.type === 'income') incTotal += e.amount; else expTotal += e.amount;
+                    
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = "1px solid var(--border)";
+                    tr.innerHTML = `
+                        <td style="padding:10px 0;">${e.currentDate.split('-')[2]}</td>
+                        <td>${e.name}</td>
+                        <td style="color:${e.type==='income'?'#2ecc71':'#e74c3c'}">$${e.amount}</td>
+                        <td><button style="font-size:10px; padding:4px;" onclick="deleteItem('${e.id}')">Delete</button></td>
+                    `;
+                    tbody.appendChild(tr);
+                }
             });
+
+            // Update Header Visuals
+            document.getElementById('summaryIncome').innerText = `$${incTotal.toFixed(0)}`;
+            document.getElementById('summaryExpense').innerText = `$${expTotal.toFixed(0)}`;
+            document.getElementById('summaryNetLabel').innerText = `$${(incTotal - expTotal).toFixed(0)} Left`;
+            
+            const pct = incTotal > 0 ? Math.min((expTotal / incTotal) * 100, 100) : (expTotal > 0 ? 100 : 0);
+            document.getElementById('summaryBurnBar').style.width = pct + "%";
         }
 
-        function togglePaid(id) {
-            let e = rawEvents.find(x => x.id === id);
-            db.collection("events").doc(id).update({ isPaid: !e.isPaid });
-        }
-
-        function deleteEvent(id) { db.collection("events").doc(id).delete(); }
-
-        function renderCalendar(events, bal) {
-            document.getElementById('calendarContainer').style.display = 'block';
-            document.getElementById('calendarMonthLabel').innerText = mNames[currentCalMonth] + " " + currentCalYear;
-            const grid = document.getElementById('calendarGrid'); grid.innerHTML = '';
-            // Simple calendar rendering logic...
-        }
-        
+        function deleteItem(id) { if(confirm("Delete this?")) db.collection("events").doc(id).delete(); }
+        function navigateCalendar(dir) { currentMonth += dir; if(currentMonth>11){currentMonth=0;currentYear++;} if(currentMonth<0){currentMonth=11;currentYear--;} renderApp(); }
         function updateBalanceToDB() { db.collection("settings").doc("balance").set({ amount: parseFloat(document.getElementById('startBalance').value) || 0 }); }
-        function archivePaid() { if(confirm("Archive all paid?")) { getActiveEvents().forEach(e => { if(e.isPaid) deleteEvent(e.id); }); } }
-        function openMasterModal() { document.getElementById('masterModal').style.display='flex'; }
-        function openAccountModal() { document.getElementById('accountModal').style.display='flex'; }
-        function openCategoryModal() { document.getElementById('categoryModal').style.display='flex'; }
-        function addCustomAccount() { /* add logic */ }
-        function addCustomCategory() { /* add logic */ }
-        function renderGoals(events) { /* goals logic */ }
+        function toggleTheme() { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); }
+
+        window.onload = setupSync;
     </script>
 </body>
 </html>
