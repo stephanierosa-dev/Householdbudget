@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard V48</title>
+    <title>Household Dashboard</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
@@ -47,6 +47,11 @@
         .btn-success { background-color: #2ecc71; margin-top: 10px; font-size: 16px; padding: 12px;}
         .btn-success:hover { background-color: #27ae60; }
         .btn-outline { background-color: transparent; color: #3498db; border: 2px solid #3498db; margin-bottom: 15px; }
+        .btn-sandbox { background-color: #e67e22; }
+        .btn-icon { width: auto; padding: 8px 12px; }
+        .btn-export { background-color: #27ae60; }
+        .btn-sweep { background-color: #9b59b6; margin-bottom: 15px; }
+        .btn-wrapped { background: linear-gradient(45deg, #8e44ad, #3498db); color: white; border: none; animation: pop 2s infinite; }
         
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
         th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
@@ -161,18 +166,18 @@
                 <div style="flex:1;">
                     <label>Bucket</label>
                     <select id="newCatBucket">
-                        <option value="needs">Needs (50%)</option>
-                        <option value="wants">Wants (30%)</option>
-                        <option value="savings">Savings (20%)</option>
+                        <option value="needs">Needs</option>
+                        <option value="wants">Wants</option>
+                        <option value="savings">Savings</option>
                     </select>
                 </div>
                 <div style="flex:1;">
                     <label>Limit ($)</label>
                     <input type="number" id="newCatBudget" placeholder="Opt." inputmode="decimal">
                 </div>
-                <button onclick="addCustomCategory()" style="width: auto; margin-bottom:2px;">Add</button>
+                <button id="saveCatBtn" onclick="addCustomCategory()" style="width: auto; margin-bottom:2px;">Add</button>
             </div>
-            <button class="btn-outline" onclick="document.getElementById('categoryModal').style.display='none'" style="margin-top: 20px;">Done</button>
+            <button class="btn-outline" onclick="closeCategoryModal()" style="margin-top: 20px;">Done</button>
         </div>
     </div>
 
@@ -230,36 +235,19 @@
                         <label>Type</label>
                         <select id="eventType" onchange="toggleGoalInput()">
                             <option value="income">Income (+)</option>
-                            <option value="expense" selected>Expense (-)</option>
+                            <option value="expense">Expense (-)</option>
                             <option value="sinking">Sinking Fund (Goal)</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Amount ($)</label>
-                        <input type="number" id="eventAmount" inputmode="decimal">
+                        <label>Category</label>
+                        <select id="eventCategory">
+                            </select>
                     </div>
                 </div>
-                
                 <div class="form-row" id="goalTargetContainer" style="display: none;">
                     <div class="form-group"><label>Total Goal Target ($)</label><input type="number" id="eventGoalTarget" value="0"></div>
                 </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Category</label>
-                        <select id="eventCategory" onchange="autoSelectBucket()">
-                            </select>
-                    </div>
-                    <div class="form-group">
-                        <label>50/30/20 Bucket</label>
-                        <select id="eventBucket">
-                            <option value="needs">Needs (50%)</option>
-                            <option value="wants" selected>Wants (30%)</option>
-                            <option value="savings">Savings (20%)</option>
-                        </select>
-                    </div>
-                </div>
-
                 <div class="form-row">
                     <div class="form-group"><label>Account / Owner</label><select id="eventAccount"></select></div>
                     <div class="form-group">
@@ -268,6 +256,7 @@
                     </div>
                 </div>
                 <div class="form-row">
+                    <div class="form-group"><label>Amount ($)</label><input type="number" id="eventAmount" inputmode="decimal"></div>
                     <div class="form-group"><label>Date</label><input type="date" id="eventDate"></div>
                     <div class="form-group" id="frequencyGroup">
                         <label>Frequency</label>
@@ -416,7 +405,7 @@
 
         let rawEvents = []; let sandboxEvents = []; let isSandbox = false; let myChart = null;
         let debts = []; let customAccounts = []; let customCategories = [];
-        let currentlyEditingEvent = null; 
+        let currentlyEditingEvent = null; let currentlyEditingCategory = null; 
         let calViewMode = 'month'; let currentCalYear = new Date().getFullYear(); let currentCalMonth = new Date().getMonth();
         let currentWeekStart = new Date(); currentWeekStart.setHours(0,0,0,0); currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); 
         const mNames=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -444,7 +433,7 @@
 
             db.collection("settings").doc("categories").onSnapshot((doc) => {
                 if(doc.exists && doc.data().list) customCategories = doc.data().list;
-                else customCategories = [ { id: 'cat_inc', name: 'Income', budget: 0, bucket: 'income' }, { id: 'cat_house', name: 'Housing & Utilities', budget: 0, bucket: 'needs' }, { id: 'cat_groc', name: 'Groceries & Dining', budget: 0, bucket: 'needs' }, { id: 'cat_pets', name: 'Pets', budget: 0, bucket: 'needs' }, { id: 'cat_hob', name: 'Hobbies & Shopping', budget: 0, bucket: 'wants' }, { id: 'cat_sub', name: 'Subscriptions', budget: 0, bucket: 'wants' }, { id: 'cat_sav', name: 'Savings / Sinking Fund', budget: 0, bucket: 'savings' } ];
+                else customCategories = [ { name: 'Housing & Utilities', budget: 0, bucket: 'needs' }, { name: 'Groceries & Dining', budget: 0, bucket: 'needs' }, { name: 'Pets', budget: 0, bucket: 'needs' }, { name: 'Hobbies & Shopping', budget: 0, bucket: 'wants' }, { name: 'Subscriptions', budget: 0, bucket: 'wants' }, { name: 'Savings / Sinking Fund', budget: 0, bucket: 'savings' } ];
                 refreshCategoryDropdown(); if(!isSandbox) generateSchedule();
             });
 
@@ -458,15 +447,6 @@
             });
         }
 
-        // V48 NEW: Auto-Select Bucket Logic based on Category choice
-        function autoSelectBucket() {
-            let catName = document.getElementById('eventCategory').value;
-            let catObj = customCategories.find(c => c.name === catName);
-            if(catObj && catObj.bucket) {
-                document.getElementById('eventBucket').value = catObj.bucket;
-            }
-        }
-
         function addDays(ds, d) { let nd = new Date(ds + 'T00:00:00'); nd.setDate(nd.getDate() + d); return nd.toISOString().split('T')[0]; }
         function addMonths(dateStr, months) {
             let d = new Date(dateStr + 'T00:00:00'); let dNum = d.getDate(); d.setMonth(d.getMonth() + months);
@@ -474,12 +454,12 @@
             return d.toISOString().split('T')[0];
         }
 
-        async function addRecurringEvents(name, type, cat, acc, flex, amt, start, freq, goal, proj, end, bkt) {
+        async function addRecurringEvents(name, type, cat, acc, flex, amt, start, freq, goal, proj, end) {
             let cur = start; let it = 0; const batch = db.batch(); let seriesId = Date.now().toString() + "_series"; 
             while(it < 105) {
                 if (end && cur > end) break;
                 let uniqueId = Date.now().toString() + "_" + it + "_" + Math.random().toString(36).substr(2,5);
-                let ev = { id: uniqueId, name, type, category: cat, bucket: bkt, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: cur, currentDate: cur, shifted: false, isPaid: false, goalTarget: goal, projectTag: proj, seriesId: seriesId, endDate: end || "" };
+                let ev = { id: uniqueId, name, type, category: cat, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: cur, currentDate: cur, shifted: false, isPaid: false, goalTarget: goal, projectTag: proj, seriesId: seriesId, endDate: end || "" };
                 
                 if(isSandbox) { sandboxEvents.push(ev); } else { let docRef = db.collection("events").doc(uniqueId); batch.set(docRef, ev); }
                 if(freq === 'once') break;
@@ -493,8 +473,6 @@
         async function processInput() {
             try {
                 const name = document.getElementById('eventName').value; const type = document.getElementById('eventType').value; const cat = document.getElementById('eventCategory').value; const acc = document.getElementById('eventAccount').value; const flex = document.getElementById('eventFlexibility').value; const amt = parseFloat(document.getElementById('eventAmount').value); const date = document.getElementById('eventDate').value; const freq = document.getElementById('eventFrequency').value; const goal = parseFloat(document.getElementById('eventGoalTarget').value) || 0; const proj = document.getElementById('eventProject').value.trim(); const end = document.getElementById('eventEndDate').value;
-                const bkt = document.getElementById('eventBucket').value; // V48 Pull bucket value
-                
                 if(!name || isNaN(amt) || !date) { alert("Fill all required fields! (Name, Amount, Date)"); return; }
                 if(end && end < date) { alert("Error: The End Date cannot occur before the Start Date."); return; }
                 
@@ -503,20 +481,20 @@
                     if (scope === 'single') {
                         deleteEventFromDb(currentlyEditingEvent.id);
                         let newId = Date.now().toString() + "_single_" + Math.random().toString(36).substr(2,5);
-                        let newEv = { id: newId, name, type, category: cat, bucket: bkt, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: date, currentDate: date, shifted: false, isPaid: currentlyEditingEvent.isPaid, goalTarget: goal, projectTag: proj, seriesId: sId, endDate: end || "" };
+                        let newEv = { id: newId, name, type, category: cat, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: date, currentDate: date, shifted: false, isPaid: currentlyEditingEvent.isPaid, goalTarget: goal, projectTag: proj, seriesId: sId, endDate: end || "" };
                         if(isSandbox) { sandboxEvents.push(newEv); generateSchedule(); } else { db.collection("events").doc(newId).set(newEv); }
                     } else {
                         let toDelete = getActiveEvents().filter(e => (e.seriesId === sId || (!e.seriesId && e.name === sId)) && e.originalDate >= targetDate);
                         if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => !toDelete.includes(e)); } else {
                             const batch = db.batch(); toDelete.forEach(e => batch.delete(db.collection("events").doc(e.id))); await batch.commit();
                         }
-                        await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end, bkt);
+                        await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end);
                     }
                     cancelEdit(); return;
                 }
                 document.getElementById('eventName').value=''; document.getElementById('eventAmount').value=''; document.getElementById('eventProject').value=''; document.getElementById('eventFrequency').value='once';
                 document.getElementById('eventGoalTarget').value='0'; document.getElementById('eventEndDate').value=''; toggleGoalInput();
-                await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end, bkt);
+                await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end);
             } catch (err) { alert("CRASH DURING SAVE: " + err.message); }
         }
 
@@ -525,13 +503,7 @@
             if (ev) {
                 currentlyEditingEvent = ev;
                 document.getElementById('saveBtn').innerText = "Update Transaction"; document.getElementById('saveBtn').style.backgroundColor = "#f39c12"; document.getElementById('cancelEditBtn').style.display = "block"; document.getElementById('editScopeContainer').style.display = "flex"; document.getElementById('frequencyGroup').style.display = "none"; 
-                document.getElementById('eventName').value = ev.name; document.getElementById('eventType').value = ev.type; toggleGoalInput(); 
-                document.getElementById('eventCategory').value = ev.category; 
-                
-                // V48 Backwards compatibility reading for bucket dropdown
-                document.getElementById('eventBucket').value = ev.bucket || (customCategories.find(c=>c.name===ev.category)?.bucket || 'wants');
-                
-                document.getElementById('eventAccount').value = ev.account; document.getElementById('eventFlexibility').value = ev.flexibility; document.getElementById('eventAmount').value = ev.amount; document.getElementById('eventDate').value = ev.originalDate; if(ev.type === 'sinking') document.getElementById('eventGoalTarget').value = ev.goalTarget; document.getElementById('eventEndDate').value = ev.endDate || ''; window.scrollTo({ top: 0, behavior: 'smooth' });
+                document.getElementById('eventName').value = ev.name; document.getElementById('eventType').value = ev.type; toggleGoalInput(); document.getElementById('eventCategory').value = ev.category; document.getElementById('eventAccount').value = ev.account; document.getElementById('eventFlexibility').value = ev.flexibility; document.getElementById('eventAmount').value = ev.amount; document.getElementById('eventDate').value = ev.originalDate; if(ev.type === 'sinking') document.getElementById('eventGoalTarget').value = ev.goalTarget; document.getElementById('eventEndDate').value = ev.endDate || ''; window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         }
 
@@ -542,8 +514,6 @@
         function deleteEventFromDb(id) { if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => e.id !== id); generateSchedule(); } else { db.collection("events").doc(id).delete(); } }
         function updateBalanceToDB() { if(!isSandbox) db.collection("settings").doc("balance").set({ amount: parseFloat(document.getElementById('startBalance').value) || 0 }); }
         function updateAccountsToDB() { if(!isSandbox) db.collection("settings").doc("accounts").set({ list: customAccounts }); }
-        function updateCategoriesToDB() { if(!isSandbox) db.collection("settings").doc("categories").set({ list: customCategories }); }
-        function updateDebtsToDB() { if(!isSandbox) db.collection("settings").doc("debts").set({ list: debts }); }
 
         function togglePaid(id) {
             if(isSandbox) { let e = sandboxEvents.find(x=>x.id===id); if(e){ e.isPaid=!e.isPaid; if(e.isPaid){e.currentDate=e.originalDate; e.shifted=false;} generateSchedule();}
@@ -594,8 +564,8 @@
             } else alert("You don't have any unallocated funds available to sweep right now!");
         }
 
-        function addDebt() { const n=document.getElementById('debtName').value; const b=parseFloat(document.getElementById('debtBalance').value); const a=parseFloat(document.getElementById('debtAPR').value); const p=parseFloat(document.getElementById('debtPay').value); if(!n||isNaN(b)||isNaN(a)||isNaN(p)) return; debts.push({ id: Date.now().toString(), name:n, balance:b, apr:a, pay:p }); document.getElementById('debtName').value=''; document.getElementById('debtBalance').value=''; document.getElementById('debtAPR').value=''; document.getElementById('debtPay').value=''; updateDebtsToDB(); }
-        function deleteDebt(id) { debts = debts.filter(d => d.id !== id); updateDebtsToDB(); }
+        function addDebt() { const n=document.getElementById('debtName').value; const b=parseFloat(document.getElementById('debtBalance').value); const a=parseFloat(document.getElementById('debtAPR').value); const p=parseFloat(document.getElementById('debtPay').value); if(!n||isNaN(b)||isNaN(a)||isNaN(p)) return; debts.push({ id: Date.now().toString(), name:n, balance:b, apr:a, pay:p }); document.getElementById('debtName').value=''; document.getElementById('debtBalance').value=''; document.getElementById('debtAPR').value=''; document.getElementById('debtPay').value=''; db.collection("settings").doc("debts").set({list: debts}); }
+        function deleteDebt(id) { debts = debts.filter(d => d.id !== id); db.collection("settings").doc("debts").set({list: debts}); }
         function renderDebts() { 
             const list = document.getElementById('debtList'); list.innerHTML = ''; 
             debts.forEach(d => { 
@@ -614,17 +584,86 @@
         function deleteCustomAccount(id) { if(getActiveEvents().some(ev => ev.account === id)) { alert("Account in use!"); return; } customAccounts = customAccounts.filter(acc => acc.id !== id); renderAccountList(); updateAccountsToDB(); }
         function refreshAccountDropdown() { const select = document.getElementById('eventAccount'); let val = select.value; select.innerHTML = ''; customAccounts.forEach(acc => { select.innerHTML += `<option value="${acc.id}">${acc.name}</option>`; }); if(customAccounts.some(acc => acc.id === val)) select.value = val; }
 
+        // V48 NEW: Advanced Category Editor Logic
         function openCategoryModal() { document.getElementById('categoryModal').style.display = 'flex'; renderCategoryList(); }
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').style.display = 'none';
+            currentlyEditingCategory = null;
+            document.getElementById('newCatName').value = ''; 
+            document.getElementById('newCatBudget').value = '';
+            document.getElementById('saveCatBtn').innerText = 'Add';
+        }
+        
         function renderCategoryList() { 
             const list = document.getElementById('categoryListContainer'); list.innerHTML = ''; 
             customCategories.forEach(cat => { 
                 let budgText = cat.budget > 0 ? ` (Limit: $${cat.budget})` : ''; 
                 let bucketLabel = cat.bucket === 'needs' ? '🔵 Needs' : (cat.bucket === 'savings' ? '🟢 Savings' : '🟣 Wants');
-                list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border);"><span>${cat.name} <span style="font-size:10px; color:var(--text-muted);">${budgText} - ${bucketLabel}</span></span><button onclick="deleteCustomCategory('${cat.id}')" style="background:#e74c3c; padding:2px 5px; width:auto; font-size:10px; border:none; color:white; border-radius:3px;">Del</button></div>`; 
+                list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border); align-items:center;">
+                    <span style="font-size:12px;">${cat.name} <span style="font-size:10px; color:var(--text-muted);">${budgText} - ${bucketLabel}</span></span>
+                    <div style="display:flex; gap:5px;">
+                        <button onclick="editCategory('${cat.name}')" style="background:#f39c12; padding:2px 6px; font-size:10px; width:auto; border:none; color:white; border-radius:3px;">Edit</button>
+                        <button onclick="deleteCustomCategory('${cat.name}')" style="background:#e74c3c; padding:2px 6px; font-size:10px; width:auto; border:none; color:white; border-radius:3px;">Del</button>
+                    </div>
+                </div>`; 
             }); 
         }
-        function addCustomCategory() { const n = document.getElementById('newCatName').value.trim(); const b = parseFloat(document.getElementById('newCatBudget').value) || 0; const bkt = document.getElementById('newCatBucket').value; if(!n) return; customCategories.push({ id: 'cat_' + Date.now().toString(), name:n, budget: b, bucket: bkt }); document.getElementById('newCatName').value = ''; document.getElementById('newCatBudget').value = ''; renderCategoryList(); updateCategoriesToDB(); }
-        function deleteCustomCategory(id) { let catObj = customCategories.find(c => c.id === id); if(getActiveEvents().some(ev => ev.category === catObj.name)) { alert("Category in use!"); return; } customCategories = customCategories.filter(cat => cat.id !== id); renderCategoryList(); updateCategoriesToDB(); }
+
+        function editCategory(name) {
+            let cat = customCategories.find(c => c.name === name);
+            if(!cat) return;
+            currentlyEditingCategory = name;
+            document.getElementById('newCatName').value = cat.name;
+            document.getElementById('newCatBucket').value = cat.bucket || 'wants';
+            document.getElementById('newCatBudget').value = cat.budget || '';
+            document.getElementById('saveCatBtn').innerText = 'Update';
+        }
+
+        async function addCustomCategory() { 
+            const n = document.getElementById('newCatName').value.trim(); 
+            const b = parseFloat(document.getElementById('newCatBudget').value) || 0; 
+            const bkt = document.getElementById('newCatBucket').value; 
+            if(!n) return; 
+
+            if (currentlyEditingCategory) {
+                const oldName = currentlyEditingCategory;
+                
+                // Update in local list
+                let catIndex = customCategories.findIndex(c => c.name === oldName);
+                if(catIndex > -1) { customCategories[catIndex] = { name: n, budget: b, bucket: bkt }; }
+                
+                // Retroactively update all existing events to the new name if it was changed
+                if (oldName !== n && !isSandbox) {
+                    let batch = db.batch();
+                    let eventsToUpdate = rawEvents.filter(e => e.category === oldName);
+                    eventsToUpdate.forEach(e => {
+                        batch.update(db.collection("events").doc(e.id), { category: n });
+                    });
+                    if(eventsToUpdate.length > 0) { await batch.commit(); }
+                } else if (oldName !== n && isSandbox) {
+                    sandboxEvents.forEach(e => { if(e.category === oldName) e.category = n; });
+                }
+
+                currentlyEditingCategory = null;
+                document.getElementById('saveCatBtn').innerText = 'Add';
+            } else {
+                if(customCategories.some(c => c.name === n)) { alert("Category already exists!"); return; }
+                customCategories.push({ name:n, budget: b, bucket: bkt }); 
+            }
+
+            if(!isSandbox) db.collection("settings").doc("categories").set({list: customCategories});
+            document.getElementById('newCatName').value = ''; 
+            document.getElementById('newCatBudget').value = ''; 
+            renderCategoryList(); 
+        }
+
+        function deleteCustomCategory(name) { 
+            if(getActiveEvents().some(ev => ev.category === name)) { alert("Category is currently used by a transaction. Reassign or delete the transaction first."); return; } 
+            customCategories = customCategories.filter(cat => cat.name !== name); 
+            if(!isSandbox) db.collection("settings").doc("categories").set({list: customCategories});
+            renderCategoryList(); 
+        }
+
         function refreshCategoryDropdown() { 
             const select = document.getElementById('eventCategory'); let val = select.value; select.innerHTML = ''; 
             customCategories.forEach(cat => { select.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); 
@@ -636,8 +675,6 @@
                 customCategories.forEach(cat => { filterSelect.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); 
                 if(customCategories.some(cat => cat.name === fVal)) filterSelect.value = fVal; 
             }
-            // Fire the auto-select on initial load
-            autoSelectBucket();
         }
 
         function openMasterModal() { document.getElementById('masterModal').style.display = 'flex'; renderMasterList(); }
@@ -717,7 +754,6 @@
             document.getElementById('summaryBurnBar').style.background = pct > 90 ? '#e74c3c' : (pct > 75 ? '#f39c12' : '#2ecc71');
         }
 
-        // V48 UPDATE: Analyzer now uses the transaction-level bucket instead of the global category rule
         function analyze503020(events) {
             let currMonth = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}`;
             document.getElementById('analyzerMonthLabel').innerText = `(For ${mNames[currentCalMonth]} ${currentCalYear})`;
@@ -728,15 +764,10 @@
                 if(e.currentDate.startsWith(currMonth)) {
                     if(e.type === 'income') { income += e.amount; }
                     else {
-                        // Look for a custom bucket on the event, fallback to category rule for older entries
-                        let bkt = e.bucket;
-                        if (!bkt) {
-                            let cat = customCategories.find(c => c.name === e.category);
-                            bkt = cat && cat.bucket ? cat.bucket : 'wants'; 
-                        }
-                        
-                        if(e.type === 'sinking' || bkt === 'savings') savings += e.amount;
-                        else if(bkt === 'needs') needs += e.amount;
+                        let cat = customCategories.find(c => c.name === e.category);
+                        let bucket = cat && cat.bucket ? cat.bucket : 'wants'; 
+                        if(e.type === 'sinking' || bucket === 'savings') savings += e.amount;
+                        else if(bucket === 'needs') needs += e.amount;
                         else wants += e.amount;
                     }
                 }
@@ -783,7 +814,7 @@
             while(!opt && safe < 100) {
                 opt = true; processingArr.sort((x, y) => { let d = new Date(x.currentDate) - new Date(y.currentDate); return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d; });
                 
-                let b = bal; 
+                let b = bal; // STANDARD CHECKBOOK START
                 for(let i=0; i<processingArr.length; i++) {
                     let e = processingArr[i]; b += (e.type==='income'?e.amount:-e.amount);
                     if(b < 0 && e.type==='expense' && e.flexibility==='flexible' && !e.isPaid) {
