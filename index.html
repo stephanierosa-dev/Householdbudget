@@ -14,7 +14,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-storage-compat.js"></script>
 
     <style>
         :root {
@@ -116,7 +115,7 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #777;">V25</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #777;">V26 Simplified</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
@@ -150,7 +149,7 @@
 
     <div id="categoryModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
         <div style="background:var(--bg-card); padding:25px; border-radius:8px; width:400px; color:var(--text-main);">
-            <h2>Manage Categories</h2>
+            <h2>Manage Categories & Budgets</h2>
             <div id="categoryListContainer" style="margin-bottom: 20px; max-height: 200px; overflow-y: auto;"></div>
             <div style="display: flex; gap: 10px; align-items:flex-end;">
                 <div style="flex:2;">
@@ -385,14 +384,12 @@
           apiKey: "AIzaSyBqClFnCHFdn8bGruQxqg7CBK2YxoZlK7U",
           authDomain: "rosa-household-budget.firebaseapp.com",
           projectId: "rosa-household-budget",
-          storageBucket: "rosa-household-budget.firebasestorage.app",
           messagingSenderId: "157279634227",
           appId: "1:157279634227:web:62087cd6adebbe55ea3446"
         };
         
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        const storage = firebase.storage();
         db.enablePersistence().catch((err) => { console.warn("Offline persistence issue: ", err); });
 
         let rawEvents = []; let sandboxEvents = []; let isSandbox = false; let myChart = null;
@@ -409,7 +406,6 @@
                 document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`;
                 if(!isSandbox) generateSchedule();
             }, (error) => { 
-                // CRITICAL DIAGNOSTIC TRIPWIRE
                 alert("FIREBASE LOCKOUT: Your database is rejecting the connection. Please go to the Firebase Console -> Firestore Database -> Rules, and change 'allow read, write: if false;' to 'allow read, write: if true;'");
                 console.error("Firestore Error:", error); 
             });
@@ -456,18 +452,7 @@
                 if(Math.ceil(Math.abs(new Date(cur) - new Date(start))/(1000*60*60*24)) > 730) break;
                 it++;
             }
-            if(isSandbox) { 
-                generateSchedule(); 
-            } else { 
-                document.getElementById('cloudStatus').innerHTML = `Syncing Batch...`; 
-                try { 
-                    await batch.commit(); 
-                } catch(e) { 
-                    // CRITICAL DIAGNOSTIC TRIPWIRE
-                    alert("SAVE FAILED: Firebase rejected the data. Check your Firestore Rules! (Error: " + e.message + ")");
-                    console.log(e); 
-                } 
-            }
+            if(isSandbox) { generateSchedule(); } else { document.getElementById('cloudStatus').innerHTML = `Syncing Batch...`; try { await batch.commit(); } catch(e) { console.log(e); } }
         }
 
         async function processInput() {
@@ -514,19 +499,6 @@
         function updateAccountsToDB() { if(!isSandbox) db.collection("settings").doc("accounts").set({ list: customAccounts }); }
         function updateCategoriesToDB() { if(!isSandbox) db.collection("settings").doc("categories").set({ list: customCategories }); }
         function updateDebtsToDB() { if(!isSandbox) db.collection("settings").doc("debts").set({ list: debts }); }
-
-        function uploadReceipt(eventId) {
-            if(isSandbox) { alert("Receipts cannot be uploaded in Sandbox mode."); return; }
-            const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*,application/pdf';
-            input.onchange = async (e) => {
-                const file = e.target.files[0]; if(!file) return;
-                document.getElementById('cloudStatus').innerHTML = `Uploading Receipt...`;
-                try {
-                    const storageRef = storage.ref(`receipts/${eventId}/${file.name}`); await storageRef.put(file); const url = await storageRef.getDownloadURL();
-                    await db.collection("events").doc(eventId).update({ receiptUrl: url }); document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`; alert("Receipt attached successfully!");
-                } catch(err) { alert("Failed to upload receipt."); }
-            }; input.click();
-        }
 
         function togglePaid(id) {
             if(isSandbox) { let e = sandboxEvents.find(x=>x.id===id); if(e){ e.isPaid=!e.isPaid; if(e.isPaid){e.currentDate=e.originalDate; e.shifted=false;} generateSchedule();}
@@ -596,7 +568,6 @@
             if(insights.length > 0) { iBox.style.display = 'block'; insights.forEach(i => iList.innerHTML += `<li style="margin-bottom:5px;">${i}</li>`); } else iBox.style.display = 'none';
         }
 
-        // NEW: 50/30/20 Analyzer Logic
         function analyze503020(events) {
             let currMonth = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}`;
             const mNames=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -664,7 +635,7 @@
 
             renderTable(filteredArr); if(filteredArr.length>0) renderCalendar(filteredArr, bal); else document.getElementById('calendarContainer').style.display='none';
             renderGoals(processingArr); renderBudgets(processingArr); updateAnalytics(processingArr); calculateSubBurnRate(processingArr); analyzeInsightsAndStreaks(processingArr); analyzeActionItems(processingArr);
-            analyze503020(processingArr); // Fires the new Rule Analyzer
+            analyze503020(processingArr); 
         }
 
         function renderBudgets(events) {
@@ -687,8 +658,7 @@
                 if(e.isPaid) tr.classList.add('is-paid'); else if(e.runningBalance<0) tr.classList.add('danger'); else if(e.shifted) tr.classList.add('shifted');
                 let fb=e.flexibility==='flexible'?'<span class="badge badge-flex">Flex</span>':''; let sb=e.type==='sinking'?'<span class="badge badge-sinking">Goal</span>':''; let pb=e.projectTag?`<span class="badge badge-project">📁 ${e.projectTag}</span>`:'';
                 let accData=customAccounts.find(a=>a.id===e.account); let ab=accData?`<span class="badge" style="background:${accData.color}; color:white;">${accData.name}</span>`:'';
-                let receiptBtn = e.receiptUrl ? `<a href="${e.receiptUrl}" target="_blank" class="btn-icon" style="background:#2ecc71; color:white; text-decoration:none; padding:4px 8px; font-size:12px; border-radius:3px;" title="View Receipt">📄</a>` : `<button class="btn-icon" style="background:#bdc3c7; color:#333; font-size:12px; padding:4px 8px;" onclick="uploadReceipt('${e.id}')" title="Attach Receipt">📎</button>`;
-                tr.innerHTML=`<td style="text-align:center;"><input type="checkbox" ${e.isPaid?'checked':''} onchange="togglePaid('${e.id}')"></td><td style="white-space:nowrap;">${e.currentDate}</td><td><strong>${e.name}</strong><br>${ab}${fb}${sb}${pb}</td><td class="${e.type==='income'?'income-text':''}">${e.type==='income'?'+':'-'}$${e.amount.toFixed(2)}</td><td><strong>$${(e.runningBalance || 0).toFixed(2)}</strong></td><td class="action-btns">${receiptBtn}<button class="btn-edit" onclick="editEvent('${e.id}')" title="Edit">✎</button><button class="btn-delete" onclick="deleteEventFromDb('${e.id}')" title="Delete">X</button></td>`;
+                tr.innerHTML=`<td style="text-align:center;"><input type="checkbox" ${e.isPaid?'checked':''} onchange="togglePaid('${e.id}')"></td><td style="white-space:nowrap;">${e.currentDate}</td><td><strong>${e.name}</strong><br>${ab}${fb}${sb}${pb}</td><td class="${e.type==='income'?'income-text':''}">${e.type==='income'?'+':'-'}$${e.amount.toFixed(2)}</td><td><strong>$${(e.runningBalance || 0).toFixed(2)}</strong></td><td class="action-btns"><button class="btn-edit" onclick="editEvent('${e.id}')" title="Edit">✎</button><button class="btn-delete" onclick="deleteEventFromDb('${e.id}')" title="Delete">X</button></td>`;
                 tb.appendChild(tr);
             });
         }
