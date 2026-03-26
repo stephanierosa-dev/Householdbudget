@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard V40</title>
+    <title>Household Dashboard V41</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
@@ -35,8 +35,8 @@
         
         .cash-flow-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
         .stat-box { padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.02); border: 1px solid var(--border); }
-        .stat-label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); }
-        .stat-value { font-size: 20px; font-weight: 800; }
+        .stat-label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: bold; }
+        .stat-value { font-size: 20px; font-weight: 800; margin-top: 4px; }
         .val-in { color: #2ecc71; }
         .val-out { color: #e74c3c; }
 
@@ -61,11 +61,11 @@
         .is-paid td { opacity: 0.4; text-decoration: line-through; }
         
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 5px; }
-        .calendar-day { background: var(--cal-day); border: 1px solid var(--cal-border); border-radius: 4px; padding: 4px; min-height: 80px; }
+        .calendar-day { background: var(--cal-day); border: 1px solid var(--cal-border); border-radius: 4px; padding: 4px; min-height: 80px; display: flex; flex-direction: column; }
         .day-number { font-weight: bold; font-size: 11px; margin-bottom: 4px;}
-        .cal-event { font-size: 9px; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .cal-income { background: rgba(46, 204, 113, 0.2); color: #27ae60; }
-        .cal-expense { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+        .cal-event { font-size: 9px; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; }
+        .cal-income { background: rgba(46, 204, 113, 0.2); color: #27ae60; border-left: 2px solid #27ae60; }
+        .cal-expense { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border-left: 2px solid #e74c3c; }
 
         .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center; padding: 20px;}
         .sandbox-banner { display: none; background: #e67e22; color: white; text-align: center; padding: 10px; border-radius: 8px; font-weight: bold; margin-bottom: 15px; }
@@ -89,7 +89,7 @@
                 <div id="syncDot" class="sync-dot"></div>
                 <span id="syncText">SYNCING...</span>
             </div>
-            <h1 style="margin:0;">Household Dashboard <span style="font-size: 12px; color: #e74c3c;">V40</span></h1>
+            <h1 style="margin:0; color: var(--heading);">Household Hub <span style="font-size: 12px; color: #e74c3c;">V41</span></h1>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="btn-outline" onclick="openMasterModal()">📋 Master List</button>
@@ -99,14 +99,16 @@
         </div>
     </div>
 
-    <div id="sandboxBanner" class="sandbox-banner">🧪 SANDBOX MODE ACTIVE: Changes will not be saved.</div>
+    <div id="sandboxBanner" class="sandbox-banner">🧪 SANDBOX MODE ACTIVE: Changes will not be saved to your live cloud.</div>
     <div id="actionAlerts"></div>
 
     <div class="header-layout">
-        <div class="card" style="margin-bottom: 0;">
-            <label style="font-size: 12px; font-weight: bold; color: var(--text-muted);">Current Bank Balance</label>
-            <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()" style="font-size: 32px; font-weight: 900; border: none; background: transparent; width: 100%; color:var(--heading);">
-            <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+        <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <label style="font-size: 12px; font-weight: bold; color: var(--text-muted);">Current Bank Balance</label>
+                <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()" style="font-size: 36px; font-weight: 900; border: none; background: transparent; width: 100%; color:var(--heading); padding: 0;">
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;">
                 <button class="btn-outline" onclick="archivePaid()">📦 Archive Paid</button>
                 <button class="btn-outline" onclick="openAccountModal()">⚙️ Accounts</button>
                 <button class="btn-outline" onclick="openCategoryModal()">⚙️ Categories</button>
@@ -114,13 +116,13 @@
         </div>
 
         <div class="card" style="margin-bottom: 0;">
-            <h3 style="font-size: 13px; margin:0;">📊 <span id="summaryMonthLabel">Current Month</span> Forecast</h3>
+            <h3 style="font-size: 14px; margin:0; color: var(--text-muted);">📊 <span id="summaryMonthLabel">Current Month</span> Forecast</h3>
             <div class="cash-flow-stats">
                 <div class="stat-box"><div class="stat-label">Total In</div><div class="stat-value val-in" id="summaryIncome">$0</div></div>
                 <div class="stat-box"><div class="stat-label">Total Out</div><div class="stat-value val-out" id="summaryExpense">$0</div></div>
             </div>
             <div class="burn-track"><div class="burn-fill" id="summaryBurnBar" style="width: 0%;"></div></div>
-            <div id="summaryNetLabel" style="font-size: 12px; margin-top: 5px; text-align: right; font-weight: bold;">$0 Leftover</div>
+            <div id="summaryNetLabel" style="font-size: 13px; margin-top: 8px; text-align: right; font-weight: bold;">$0 Leftover</div>
         </div>
     </div>
 
@@ -166,20 +168,20 @@
                 </div>
                 
                 <div class="form-row" id="editScopeContainer" style="display: none; background: rgba(243, 156, 18, 0.1); padding: 10px; border-radius: 6px; border: 1px solid #f39c12; margin-bottom: 10px;">
-                    <div class="form-group">
+                    <div class="form-group" style="margin-bottom: 0;">
                         <label style="color: #d35400;">Apply Changes To:</label>
-                        <select id="editScope"><option value="future">All future occurrences</option><option value="single">Only this specific date</option></select>
+                        <select id="editScope" style="margin-bottom: 0;"><option value="future">All future occurrences</option><option value="single">Only this specific date</option></select>
                     </div>
                 </div>
                 <button id="saveBtn" onclick="processInput()" style="background: #2ecc71; padding: 15px;">Save Transaction</button>
-                <button id="cancelEditBtn" onclick="cancelEdit()" style="display:none; background:#7f8c8d; margin-top:5px;">Cancel Edit</button>
+                <button id="cancelEditBtn" onclick="cancelEdit()" style="display:none; background:#7f8c8d; margin-top:10px;">Cancel Edit</button>
             </div>
 
             <div class="card">
-                <h2>⚖️ 50/30/20 Analyzer</h2>
-                <div class="rule-group"><div class="rule-header"><span>Needs (Target 50%)</span><span id="needsPct">0%</span></div><div class="burn-track" style="margin-top:0;"><div class="goal-fill" id="needsBar" style="width:0%; background:#3498db;"></div></div></div>
-                <div class="rule-group"><div class="rule-header"><span>Wants (Target 30%)</span><span id="wantsPct">0%</span></div><div class="burn-track" style="margin-top:0;"><div class="goal-fill" id="wantsBar" style="width:0%; background:#9b59b6;"></div></div></div>
-                <div class="rule-group"><div class="rule-header"><span>Savings (Target 20%)</span><span id="savingsPct">0%</span></div><div class="burn-track" style="margin-top:0;"><div class="goal-fill" id="savingsBar" style="width:0%; background:#2ecc71;"></div></div></div>
+                <h2>⚖️ 50/30/20 Grade</h2>
+                <div class="rule-group" style="border-left: 3px solid #3498db;"><div class="rule-header"><span>Needs (Target 50%)</span><span id="needsPct">0%</span></div><div class="burn-track" style="margin-top:0;"><div class="goal-fill" id="needsBar" style="width:0%; background:#3498db;"></div></div></div>
+                <div class="rule-group" style="border-left: 3px solid #9b59b6;"><div class="rule-header"><span>Wants (Target 30%)</span><span id="wantsPct">0%</span></div><div class="burn-track" style="margin-top:0;"><div class="goal-fill" id="wantsBar" style="width:0%; background:#9b59b6;"></div></div></div>
+                <div class="rule-group" style="border-left: 3px solid #2ecc71;"><div class="rule-header"><span>Savings (Target 20%)</span><span id="savingsPct">0%</span></div><div class="burn-track" style="margin-top:0;"><div class="goal-fill" id="savingsBar" style="width:0%; background:#2ecc71;"></div></div></div>
             </div>
 
             <div class="card">
@@ -189,14 +191,14 @@
 
             <div class="card">
                 <h2>Savings Goals</h2>
-                <button class="btn-outline" style="background:#9b59b6; color:white; border:none; width:100%; margin-bottom:15px; padding:12px;" onclick="sweepLeftovers()">🧹 Sweep Leftover Cash</button>
+                <button onclick="sweepLeftovers()" style="background:#9b59b6; color:white; border:none; width:100%; margin-bottom:15px; padding:12px;">🧹 Sweep Leftover Cash</button>
                 <div id="goalsList"></div>
             </div>
 
             <div class="card">
                 <h2>Spending Analytics</h2>
                 <div class="sub-auditor">
-                    <h3 style="margin: 0 0 5px 0; font-size: 14px; color: #8e44ad;">Monthly Subscription Burn Rate</h3>
+                    <h3 style="margin: 0 0 5px 0; font-size: 14px; color: #8e44ad;">Monthly Subscriptions</h3>
                     <div style="font-size: 24px; font-weight: bold; color: var(--heading);" id="subBurnRate">$0.00</div>
                 </div>
                 <div class="chart-container"><canvas id="spendingChart"></canvas></div>
@@ -212,20 +214,20 @@
                     <div class="form-group"><label>APR %</label><input type="number" id="debtAPR" placeholder="24.99"></div>
                     <div class="form-group"><label>Monthly Pay ($)</label><input type="number" id="debtPay" placeholder="150"></div>
                 </div>
-                <button onclick="addDebt()" style="background:#e74c3c;">Add Debt Tracker</button>
+                <button onclick="addDebt()" style="background:#e74c3c;">Track Debt</button>
                 <div id="debtList" style="margin-top:15px;"></div>
             </div>
         </div>
 
         <div>
-            <div class="card" style="overflow-x: auto;">
+            <div class="card" style="overflow-x: auto; min-height: 800px;">
                 <button onclick="generateSchedule()" style="background:#2ecc71; padding:15px; font-size:16px;">Calculate & Optimize Schedule</button>
                 
                 <div id="calendarContainer" style="margin-top:20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <button class="btn-outline" onclick="navigateCalendar(-1)" style="padding: 4px 10px;">◀ Prev</button>
-                        <h2 id="calendarMonthLabel" style="margin:0; font-size: 16px;">Month</h2>
-                        <button class="btn-outline" onclick="navigateCalendar(1)" style="padding: 4px 10px;">Next ▶</button>
+                        <button class="btn-outline" onclick="navigateCalendar(-1)" style="padding: 4px 10px; margin: 0;">◀ Prev</button>
+                        <h2 id="calendarMonthLabel" style="margin:0; font-size: 18px; color: #3498db;">Month</h2>
+                        <button class="btn-outline" onclick="navigateCalendar(1)" style="padding: 4px 10px; margin: 0;">Next ▶</button>
                     </div>
                     <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; font-weight: bold; text-align: center; font-size: 12px; color: var(--text-muted);">
                         <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
@@ -234,13 +236,20 @@
                 </div>
 
                 <h3 style="margin-top: 30px;">Chronological Ledger</h3>
-                <div style="display:flex; gap:10px; margin-bottom:10px;">
-                    <input type="text" id="searchLedger" placeholder="🔍 Search names..." onkeyup="generateSchedule()">
-                    <select id="filterStatus" onchange="generateSchedule()" style="width:auto;"><option value="all">All Statuses</option><option value="unpaid">Unpaid Only</option><option value="paid">Paid Only</option></select>
+                
+                <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                    <input type="text" id="searchLedger" placeholder="🔍 Search names or tags..." onkeyup="generateSchedule()" style="flex:2; min-width:150px; margin-bottom: 0;">
+                    <select id="filterStatus" onchange="generateSchedule()" style="flex:1; min-width:100px; margin-bottom: 0;">
+                        <option value="all">All Status</option><option value="unpaid">Unpaid Only</option><option value="paid">Paid Only</option>
+                    </select>
+                    <select id="filterCategory" onchange="generateSchedule()" style="flex:1; min-width:100px; margin-bottom: 0;">
+                        <option value="all">All Categories</option>
+                    </select>
                 </div>
+                
                 <div style="overflow-x: auto;">
                     <table id="ledgerTable">
-                        <thead><tr><th>Paid</th><th>Date</th><th>Transaction</th><th>Amount</th><th>Balance</th><th>Action</th></tr></thead>
+                        <thead><tr><th>Paid</th><th>Date</th><th>Transaction</th><th>Amount</th><th>Balance</th><th>Edit</th></tr></thead>
                         <tbody id="ledgerBody"></tbody>
                     </table>
                 </div>
@@ -255,7 +264,11 @@
     <div id="masterModal" class="modal-overlay"><div class="card" style="width:500px; max-height:80vh; overflow-y:auto;"><h2>📋 Master Templates</h2><p style="font-size:12px; color:var(--text-muted); margin-bottom:15px;">Manage the source templates for all your recurring items.</p><div id="masterListContainer"></div><button class="btn-outline" style="width:100%; margin-top:15px;" onclick="document.getElementById('masterModal').style.display='none'">Close</button></div></div>
 
     <script>
-        window.onerror = function(msg, url, lineNo, columnNo, error) { alert("JS CRASH: " + msg + "\nLine: " + lineNo); return false; };
+        // GLOBAL ERROR CATCHER
+        window.onerror = function(msg, url, lineNo, columnNo, error) { 
+            alert("SYSTEM ALERT: " + msg + "\nLine: " + lineNo); 
+            return false; 
+        };
 
         const firebaseConfig = {
           apiKey: "AIzaSyBqClFnCHFdn8bGruQxqg7CBK2YxoZlK7U",
@@ -283,11 +296,15 @@
                 document.getElementById('syncDot').classList.add('online');
                 document.getElementById('syncText').innerText = "LIVE SYNC ACTIVE";
                 generateSchedule();
-            }, (err) => { alert("Database Permissions Error. Check Firebase Rules."); });
+            }, (err) => { 
+                document.getElementById('syncDot').style.background = '#e74c3c';
+                document.getElementById('syncText').innerText = "OFFLINE";
+                alert("Database Connection Error. Ensure your Firebase Rules allow read/write access."); 
+            });
 
             db.collection("settings").doc("balance").onSnapshot(doc => { if(doc.exists) document.getElementById('startBalance').value = doc.data().amount; generateSchedule(); });
-            db.collection("settings").doc("accounts").onSnapshot(doc => { customAccounts = doc.exists ? doc.data().list : [{id:'j1', name:'Joint Checking', color:'#3498db'}]; refreshAccountDropdown(); renderAccountList(); });
-            db.collection("settings").doc("categories").onSnapshot(doc => { customCategories = doc.exists ? doc.data().list : [{name:'Rent', bucket:'needs'},{name:'Income', bucket:'income'}]; refreshCategoryDropdown(); renderCategoryList(); });
+            db.collection("settings").doc("accounts").onSnapshot(doc => { customAccounts = doc.exists && doc.data().list.length ? doc.data().list : [{id:'j1', name:'Joint Checking', color:'#3498db'}]; refreshAccountDropdown(); renderAccountList(); });
+            db.collection("settings").doc("categories").onSnapshot(doc => { customCategories = doc.exists && doc.data().list.length ? doc.data().list : [{name:'Rent', bucket:'needs'},{name:'Income', bucket:'income'}]; refreshCategoryDropdown(); renderCategoryList(); });
             db.collection("settings").doc("debts").onSnapshot(doc => { debts = doc.exists ? doc.data().list : []; renderDebts(); });
         }
 
@@ -301,14 +318,21 @@
             const type = document.getElementById('eventType').value; const end = document.getElementById('eventEndDate').value;
             const flex = document.getElementById('eventFlexibility').value; const proj = document.getElementById('eventProject').value;
             const goal = parseFloat(document.getElementById('eventGoalTarget').value) || 0;
-            if(!name || isNaN(amt) || !date) { alert("Fill Name, Amount, and Date."); return; }
+            if(!name || isNaN(amt) || !date) { alert("Please fill out the Name, Amount, and Date fields."); return; }
 
             if(currentlyEditingEvent) {
                 let scope = document.getElementById('editScope').value; let sId = currentlyEditingEvent.seriesId || currentlyEditingEvent.name;
-                if(scope === 'single') { if(isSandbox){sandboxEvents=sandboxEvents.filter(e=>e.id!==currentlyEditingEvent.id);} else {await db.collection("events").doc(currentlyEditingEvent.id).delete();} }
-                else {
+                if(scope === 'single') { 
+                    if(isSandbox){ sandboxEvents=sandboxEvents.filter(e=>e.id!==currentlyEditingEvent.id); } 
+                    else { await db.collection("events").doc(currentlyEditingEvent.id).delete(); } 
+                } else {
                     let toDel = getActiveEvents().filter(e => (e.seriesId === sId || e.name === sId) && e.originalDate >= currentlyEditingEvent.originalDate);
-                    if(isSandbox){sandboxEvents=sandboxEvents.filter(e=>!toDel.includes(e));} else { const batch = db.batch(); toDel.forEach(e => batch.delete(db.collection("events").doc(e.id))); await batch.commit(); }
+                    if(isSandbox){ sandboxEvents=sandboxEvents.filter(e=>!toDel.includes(e)); } 
+                    else { 
+                        const batch = db.batch(); 
+                        toDel.forEach(e => batch.delete(db.collection("events").doc(e.id))); 
+                        await batch.commit(); 
+                    }
                 }
             }
 
@@ -373,10 +397,16 @@
             // Search Filter
             let search = document.getElementById('searchLedger').value.toLowerCase();
             let status = document.getElementById('filterStatus').value;
+            
+            // BUG FIX: Added protective fallback for missing category filter during edge cases
+            let catFilterEl = document.getElementById('filterCategory');
+            let catFilter = catFilterEl ? catFilterEl.value : 'all';
+
             let filteredArr = processingArr.filter(e => {
                 let mSearch = e.name.toLowerCase().includes(search) || (e.projectTag && e.projectTag.toLowerCase().includes(search));
                 let mStatus = status === 'all' ? true : (status === 'paid' ? e.isPaid : !e.isPaid);
-                return mSearch && mStatus;
+                let mCat = catFilter === 'all' ? true : e.category === catFilter;
+                return mSearch && mStatus && mCat;
             });
 
             // Execute Updates
@@ -437,7 +467,20 @@
         // DEBT DEMOLISHER
         function addDebt() { const n=document.getElementById('debtName').value, b=parseFloat(document.getElementById('debtBalance').value), a=parseFloat(document.getElementById('debtAPR').value), p=parseFloat(document.getElementById('debtPay').value); if(!n||isNaN(b)||isNaN(a)||isNaN(p)) return; debts.push({id:Date.now().toString(), name:n, balance:b, apr:a, pay:p}); db.collection("settings").doc("debts").set({list: debts}); document.getElementById('debtName').value=''; document.getElementById('debtBalance').value=''; document.getElementById('debtAPR').value=''; document.getElementById('debtPay').value=''; }
         function deleteDebt(id) { debts = debts.filter(d => d.id !== id); db.collection("settings").doc("debts").set({list: debts}); }
-        function renderDebts() { const l=document.getElementById('debtList'); l.innerHTML=''; debts.forEach(d => { let r=(d.apr/100)/12; let months=(d.pay<=r*d.balance)?Infinity:-Math.log(1-(r*d.balance)/d.pay)/Math.log(1+r); let pText = months===Infinity?'<span style="color:#e74c3c">Will never pay off!</span>':`${Math.ceil(months)} months`; l.innerHTML += `<div class="goal-container"><div style="display:flex; justify-content:space-between; font-weight:bold;"><span>${d.name}</span><span>$${d.balance}</span></div><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">$${d.pay}/mo at ${d.apr}% APR</div><div style="font-size:12px; font-weight:bold; color:#e67e22;">⏱ ${pText}</div><button onclick="deleteDebt('${d.id}')" style="background:transparent; color:#e74c3c; border:none; padding:0; text-align:left; font-size:10px; margin-top:5px; width:auto;">Remove</button></div>`; }); }
+        function renderDebts() { 
+            const l=document.getElementById('debtList'); l.innerHTML=''; 
+            debts.forEach(d => { 
+                let r = (d.apr / 100) / 12; 
+                
+                // BUG FIX: Safeguard against 0% APR math crash
+                let months = 0;
+                if (r === 0) { months = d.pay > 0 ? d.balance / d.pay : Infinity; } 
+                else { months = (d.pay <= r * d.balance) ? Infinity : -Math.log(1 - (r * d.balance) / d.pay) / Math.log(1 + r); }
+                
+                let pText = months===Infinity?'<span style="color:#e74c3c">Will never pay off!</span>':`${Math.ceil(months)} months`; 
+                l.innerHTML += `<div class="goal-container"><div style="display:flex; justify-content:space-between; font-weight:bold;"><span>${d.name}</span><span>$${d.balance}</span></div><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">$${d.pay}/mo at ${d.apr}% APR</div><div style="font-size:12px; font-weight:bold; color:#e67e22;">⏱ ${pText}</div><button onclick="deleteDebt('${d.id}')" style="background:transparent; color:#e74c3c; border:none; padding:0; text-align:left; font-size:10px; margin-top:5px; width:auto;">Remove</button></div>`; 
+            }); 
+        }
 
         // ALERTS & STREAKS
         function analyzeActionItems(events) {
@@ -564,15 +607,56 @@
         function renderCategoryList() { const c = document.getElementById('categoryListContainer'); c.innerHTML = ''; customCategories.forEach(cat => c.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom:5px; align-items:center;"><span style="font-size:12px;">${cat.name} <span style="color:var(--text-muted);">(${cat.bucket})</span></span><button onclick="deleteCategory('${cat.name}')" style="width:auto; background:#e74c3c; padding:2px 6px; font-size:10px;">X</button></div>`); }
         function addCustomCategory() { const n = document.getElementById('newCatName').value; if(!n) return; customCategories.push({name:n, bucket:document.getElementById('newCatBucket').value, budget:parseFloat(document.getElementById('newCatBudget').value)||0}); db.collection("settings").doc("categories").set({list: customCategories}); document.getElementById('newCatName').value=''; document.getElementById('newCatBudget').value='';}
         function deleteCategory(name) { customCategories = customCategories.filter(c=>c.name!==name); db.collection("settings").doc("categories").set({list: customCategories}); }
-        function refreshCategoryDropdown() { const s = document.getElementById('eventCategory'); s.innerHTML = ''; customCategories.forEach(c => s.innerHTML += `<option value="${c.name}">${c.name}</option>`); }
+        
+        function refreshCategoryDropdown() { 
+            const s = document.getElementById('eventCategory'); s.innerHTML = ''; 
+            customCategories.forEach(c => s.innerHTML += `<option value="${c.name}">${c.name}</option>`); 
+            
+            // BUG FIX: Restored the Category Search Filter Dropdown
+            const filterSelect = document.getElementById('filterCategory'); 
+            if(filterSelect) {
+                let fVal = filterSelect.value; 
+                filterSelect.innerHTML = '<option value="all">All Categories</option>'; 
+                customCategories.forEach(cat => filterSelect.innerHTML += `<option value="${cat.name}">${cat.name}</option>`); 
+                if(customCategories.some(cat => cat.name === fVal)) filterSelect.value = fVal;
+            }
+        }
 
-        function archivePaid() { if(confirm("Permanently archive paid items?")) { const batch = db.batch(); rawEvents.filter(e => e.isPaid).forEach(e => batch.delete(db.collection("events").doc(e.id))); batch.commit(); } }
+        // BUG FIX: Robust Archive Logic to prevent Firebase Overload Crash
+        async function archivePaid() { 
+            if(confirm("Permanently archive all paid items?")) { 
+                let paidEvents = rawEvents.filter(e => e.isPaid);
+                
+                if(isSandbox) { 
+                    sandboxEvents = sandboxEvents.filter(e => !e.isPaid); 
+                    generateSchedule(); 
+                } else {
+                    document.getElementById('syncText').innerText = "ARCHIVING...";
+                    
+                    // Firebase has a hard limit of 500 actions per batch. We chunk it.
+                    for (let i = 0; i < paidEvents.length; i += 400) {
+                        let chunk = paidEvents.slice(i, i + 400);
+                        let batch = db.batch();
+                        chunk.forEach(e => batch.delete(db.collection("events").doc(e.id)));
+                        await batch.commit();
+                    }
+                    document.getElementById('syncText').innerText = "LIVE SYNC ACTIVE";
+                }
+            } 
+        }
+
         function toggleSandbox() { isSandbox = !isSandbox; document.getElementById('sandboxBanner').style.display = isSandbox ? 'block' : 'none'; document.getElementById('sandboxBtn').style.background = isSandbox ? '#e67e22' : 'transparent'; document.getElementById('sandboxBtn').style.color = isSandbox ? 'white' : '#e67e22'; if(isSandbox) sandboxEvents = JSON.parse(JSON.stringify(rawEvents)); generateSchedule(); }
         function openMasterModal() { document.getElementById('masterModal').style.display='flex'; renderMasterList(); }
         function renderMasterList() {
             const list = document.getElementById('masterListContainer'); list.innerHTML = ''; let unique = {};
             getActiveEvents().forEach(e => { let sid = e.seriesId || e.name; if(!unique[sid]) unique[sid] = []; unique[sid].push(e); });
             for(let id in unique) { let evs = unique[id]; evs.sort((a,b)=>new Date(a.currentDate)-new Date(b.currentDate)); let e = evs[0]; list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid var(--border); align-items:center;"><div><strong>${e.name}</strong><br><span style="font-size:11px; color:var(--text-muted);">$${e.amount}</span></div><div><button onclick="editEvent('${e.id}'); document.getElementById('masterModal').style.display='none';" style="width:auto; padding:5px 10px; background:#f39c12; font-size:11px;">Edit</button></div></div>`; }
+        }
+        
+        function showYearInReview() { alert("Year in Review will generate at the end of the year!"); }
+        function exportCSV() { 
+            let csv="Date,Name,Amount,Type\n"; getActiveEvents().forEach(e=>csv+=`${e.currentDate},${e.name},${e.amount},${e.type}\n`); 
+            let blob=new Blob([csv],{type:'text/csv'}); let url=window.URL.createObjectURL(blob); let a=document.createElement('a'); a.href=url; a.download='Household_Budget_Export.csv'; a.click(); 
         }
     </script>
 </body>
