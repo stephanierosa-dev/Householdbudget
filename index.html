@@ -115,12 +115,13 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V29</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V30</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
             <button class="btn-icon" onclick="openMasterModal()" style="background:#9b59b6; color:white;">📋 Master List</button>
             <button class="btn-icon btn-wrapped" onclick="showYearInReview()">🎉 Year Review</button>
+            <button class="btn-icon btn-export" onclick="exportCSV()">📥 Export CSV</button>
             <button class="btn-icon btn-sandbox" id="sandboxBtn" onclick="toggleSandbox()">🧪 Sandbox</button>
             <button class="btn-icon btn-settings" onclick="openCategoryModal()">⚙️ Categories</button>
             <button class="btn-icon btn-settings" onclick="openAccountModal()">⚙️ Accounts</button>
@@ -422,7 +423,7 @@
                 document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`;
                 if(!isSandbox) generateSchedule();
             }, (error) => { 
-                alert("FIREBASE PERMISSION ERROR: Your database rules are blocking saves. Go to Firebase Console -> Firestore Database -> Rules. Ensure it says: allow read, write: if true;");
+                alert("FIREBASE PERMISSION ERROR: Your database rules are blocking saves.");
                 document.getElementById('cloudStatus').innerHTML = `<span style="color:#e74c3c; font-weight:bold;">Database Locked</span>`;
                 console.error(error); 
             });
@@ -473,12 +474,7 @@
                 generateSchedule(); 
             } else { 
                 document.getElementById('cloudStatus').innerHTML = `Syncing Batch...`; 
-                try { 
-                    await batch.commit(); 
-                } catch(e) { 
-                    alert("FIREBASE SAVE REJECTED: Check Firestore Rules. Error: " + e.message); 
-                    console.log(e); 
-                } 
+                try { await batch.commit(); } catch(e) { console.log(e); } 
             }
         }
 
@@ -507,9 +503,7 @@
                 document.getElementById('eventName').value=''; document.getElementById('eventAmount').value=''; document.getElementById('eventProject').value=''; document.getElementById('eventFrequency').value='once';
                 document.getElementById('eventGoalTarget').value='0'; document.getElementById('eventEndDate').value=''; toggleGoalInput();
                 await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end);
-            } catch (err) {
-                alert("CRASH DURING SAVE: " + err.message);
-            }
+            } catch (err) { alert("CRASH DURING SAVE: " + err.message); }
         }
 
         function editEvent(id) {
@@ -576,68 +570,24 @@
         function deleteCustomCategory(id) { let catObj = customCategories.find(c => c.id === id); if(getActiveEvents().some(ev => ev.category === catObj.name)) { alert("Category in use!"); return; } customCategories = customCategories.filter(cat => cat.id !== id); renderCategoryList(); updateCategoriesToDB(); }
         function refreshCategoryDropdown() { const select = document.getElementById('eventCategory'); let val = select.value; select.innerHTML = ''; customCategories.forEach(cat => { select.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); if(customCategories.some(cat => cat.name === val)) select.value = val; const filterSelect = document.getElementById('filterCategory'); let fVal = filterSelect.value; filterSelect.innerHTML = '<option value="all">All Categories</option>'; customCategories.forEach(cat => { filterSelect.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); if(customCategories.some(cat => cat.name === fVal)) filterSelect.value = fVal; }
 
-        // NEW: MASTER LIST FUNCTIONS
-        function openMasterModal() {
-            document.getElementById('masterModal').style.display = 'flex';
-            renderMasterList();
-        }
-
+        function openMasterModal() { document.getElementById('masterModal').style.display = 'flex'; renderMasterList(); }
         function renderMasterList() {
-            const list = document.getElementById('masterListContainer');
-            list.innerHTML = '';
-            let a = getActiveEvents();
-            let uniqueSeries = {};
-            let today = new Date().toISOString().split('T')[0];
-
-            a.forEach(e => {
-                let sId = e.seriesId || e.name;
-                if (!uniqueSeries[sId]) { uniqueSeries[sId] = []; }
-                uniqueSeries[sId].push(e);
-            });
-
-            if (Object.keys(uniqueSeries).length === 0) {
-                list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No recurring items found.</div>';
-                return;
-            }
-
+            const list = document.getElementById('masterListContainer'); list.innerHTML = ''; let a = getActiveEvents(); let uniqueSeries = {}; let today = new Date().toISOString().split('T')[0];
+            a.forEach(e => { let sId = e.seriesId || e.name; if (!uniqueSeries[sId]) { uniqueSeries[sId] = []; } uniqueSeries[sId].push(e); });
+            if (Object.keys(uniqueSeries).length === 0) { list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No recurring items found.</div>'; return; }
             for (let sId in uniqueSeries) {
-                let seriesEvents = uniqueSeries[sId];
-                seriesEvents.sort((x, y) => new Date(x.currentDate) - new Date(y.currentDate));
+                let seriesEvents = uniqueSeries[sId]; seriesEvents.sort((x, y) => new Date(x.currentDate) - new Date(y.currentDate));
                 let repEvent = seriesEvents.find(e => e.currentDate >= today) || seriesEvents[seriesEvents.length - 1];
                 let typeIcon = repEvent.type === 'income' ? '🟩' : (repEvent.type === 'sinking' ? '🟦' : '🟥');
-                
-                list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
-                    <div>
-                        <strong>${typeIcon} ${repEvent.name}</strong><br>
-                        <span style="font-size:11px; color:var(--text-muted);">${repEvent.category} • $${repEvent.amount.toFixed(2)}</span>
-                    </div>
-                    <div style="display:flex; gap:5px;">
-                        <button onclick="editMaster('${repEvent.id}')" style="background:#f39c12; padding:5px 10px; font-size:11px; width:auto;">Edit</button>
-                        <button onclick="deleteMasterSeries('${sId}')" style="background:#e74c3c; padding:5px 10px; font-size:11px; width:auto;">Delete All</button>
-                    </div>
-                </div>`;
+                list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);"><div><strong>${typeIcon} ${repEvent.name}</strong><br><span style="font-size:11px; color:var(--text-muted);">${repEvent.category} • $${repEvent.amount.toFixed(2)}</span></div><div style="display:flex; gap:5px;"><button onclick="editMaster('${repEvent.id}')" style="background:#f39c12; padding:5px 10px; font-size:11px; width:auto;">Edit</button><button onclick="deleteMasterSeries('${sId}')" style="background:#e74c3c; padding:5px 10px; font-size:11px; width:auto;">Del All</button></div></div>`;
             }
         }
-
-        function editMaster(id) {
-            document.getElementById('masterModal').style.display = 'none';
-            editEvent(id);
-            // Default to modifying the whole future series since they used the master list
-            setTimeout(() => { document.getElementById('editScope').value = 'future'; }, 100);
-        }
-
+        function editMaster(id) { document.getElementById('masterModal').style.display = 'none'; editEvent(id); setTimeout(() => { document.getElementById('editScope').value = 'future'; }, 100); }
         async function deleteMasterSeries(sId) {
             if(confirm("Are you sure you want to completely delete EVERY future and past record of this item?")) {
                 let toDelete = getActiveEvents().filter(e => (e.seriesId === sId || (!e.seriesId && e.name === sId)));
-                if(isSandbox) {
-                    sandboxEvents = sandboxEvents.filter(e => !toDelete.includes(e));
-                    generateSchedule();
-                    renderMasterList();
-                } else {
-                    const batch = db.batch(); 
-                    toDelete.forEach(e => batch.delete(db.collection("events").doc(e.id))); 
-                    await batch.commit();
-                    setTimeout(renderMasterList, 500); // Wait for cloud sync
+                if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => !toDelete.includes(e)); generateSchedule(); renderMasterList(); } else {
+                    const batch = db.batch(); toDelete.forEach(e => batch.delete(db.collection("events").doc(e.id))); await batch.commit(); setTimeout(renderMasterList, 500); 
                 }
             }
         }
@@ -704,11 +654,32 @@
             document.getElementById('savingsBar').style.width = `${Math.min(sPct, 100)}%`; document.getElementById('savingsBar').style.background = sPct < 15 ? '#e74c3c' : '#2ecc71';
         }
 
+        // V30 FEATURE: PAYCHECK SNAPPING
         function generateSchedule() {
             let bal = parseFloat(document.getElementById('startBalance').value) || 0; let a = getActiveEvents(); let opt = false; let safe = 0;
             let processingArr = JSON.parse(JSON.stringify(a));
+            
+            // 1. Reset everything to original dates
             processingArr.forEach(e => { if(!e.isPaid) { e.currentDate = e.originalDate; e.shifted = false; } });
 
+            // 2. PAYCHECK SNAPPING: Move unpaid bills back to the nearest preceding income date
+            let incomeDates = [...new Set(processingArr.filter(e => e.type === 'income').map(e => e.currentDate))].sort();
+            if(incomeDates.length > 0) {
+                processingArr.forEach(e => {
+                    if (e.type !== 'income' && !e.isPaid) {
+                        let priorIncomes = incomeDates.filter(d => d <= e.originalDate);
+                        if (priorIncomes.length > 0) {
+                            let snapDate = priorIncomes[priorIncomes.length - 1];
+                            if (e.originalDate !== snapDate) {
+                                e.currentDate = snapDate;
+                                e.shifted = true; // Marks it yellow to show it was grouped to a paycheck
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 3. Forward Shifting for Negative Balances
             while(!opt && safe < 100) {
                 opt = true; processingArr.sort((x, y) => { let d = new Date(x.currentDate) - new Date(y.currentDate); return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d; });
                 let b = bal;
@@ -760,12 +731,11 @@
             });
         }
 
-        function toggleGoalInput() { document.getElementById('goalTargetContainer').style.display = document.getElementById('eventType').value === 'sinking' ? 'flex' : 'none'; }
         function toggleTheme() { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); localStorage.setItem('budgetAppTheme', document.body.getAttribute('data-theme')); if(rawEvents.length > 0) generateSchedule(); }
         function loadTheme() { if(localStorage.getItem('budgetAppTheme') === 'dark') document.body.setAttribute('data-theme', 'dark'); }
         function toggleSandbox() { isSandbox = !isSandbox; document.getElementById('sandboxBanner').style.display = isSandbox ? 'block' : 'none'; document.getElementById('sandboxBtn').innerText = isSandbox ? '🛑 Exit Sandbox' : '🧪 Sandbox Mode'; document.getElementById('sandboxBtn').style.backgroundColor = isSandbox ? '#c0392b' : '#e67e22'; if(isSandbox) { sandboxEvents = JSON.parse(JSON.stringify(rawEvents)); } generateSchedule(); }
         function toggleCalendarView() { calViewMode = calViewMode === 'month' ? 'week' : 'month'; document.getElementById('toggleViewBtn').innerText = calViewMode === 'month' ? 'Switch to Weekly' : 'Switch to Monthly'; generateSchedule(); }
-        function calculateSubBurnRate(events) { let subs = {}; events.forEach(e => { if(e.category === 'Subscriptions') { if(!subs[e.name]) subs[e.name] = e.amount; } }); let total = Object.values(subs).reduce((a,b)=>a+b, 0); document.getElementById('subBurnRate').innerText = `$${total.toFixed(2)}`; }
+        
         function showYearInReview() { let a = getActiveEvents(); let catTotals = {}; let totalSaved = 0; let totalDebt = 0; let currentYear = new Date().getFullYear().toString(); a.forEach(e => { if(e.isPaid && e.currentDate.startsWith(currentYear)) { if(e.type === 'expense' && e.category !== 'Income' && e.category !== 'Savings') { catTotals[e.category] = (catTotals[e.category]||0) + e.amount; } if(e.type === 'sinking') totalSaved += e.amount; if(e.projectTag === 'Sweeper' || e.name.toLowerCase().includes('card') || e.name.toLowerCase().includes('debt')) totalDebt += e.amount; } }); let topCat = "No Data Yet"; let topAmt = 0; for(let [cat, amt] of Object.entries(catTotals)) { if(amt > topAmt) { topAmt = amt; topCat = cat; } } document.getElementById('wrapTopCat').innerText = `${topCat} ($${topAmt.toFixed(0)})`; document.getElementById('wrapSaved').innerText = `$${totalSaved.toFixed(0)}`; document.getElementById('wrapDebt').innerText = `$${totalDebt.toFixed(0)}`; document.getElementById('wrappedModal').style.display = 'flex'; }
         
         function exportCSV() { 
