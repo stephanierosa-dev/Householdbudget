@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard V35</title>
+    <title>Household Dashboard V37</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
@@ -13,132 +13,72 @@
         :root {
             --bg-body: #f4f7f6; --bg-card: #ffffff; --text-main: #333333; --text-muted: #555555; 
             --heading: #2c3e50; --border: #cccccc; --th-bg: #f8f9fa; --input-bg: #ffffff;
-            --cal-day: #fdfdfd; --cal-border: #e0e0e0;
-            --sync-ok: #2ecc71; --sync-wait: #f1c40f;
+            --sync-ok: #2ecc71; --sync-err: #e74c3c;
         }
         [data-theme="dark"] {
             --bg-body: #1a1a2e; --bg-card: #16213e; --text-main: #e9e9eb; --text-muted: #b0b3b8; 
             --heading: #ffffff; --border: #444444; --th-bg: #0f3460; --input-bg: #1a1a2e;
-            --cal-day: #16213e; --cal-border: #333333;
         }
-
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 15px; max-width: 1200px; margin: 0 auto; transition: 0.3s; }
-        
-        /* SYNC INDICATOR STYLES */
-        .sync-container { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; font-weight: bold; color: var(--text-muted); }
-        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sync-wait); position: relative; }
+        .card { background: var(--bg-card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .sync-container { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; font-weight: bold; }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
         .sync-dot.online { background: var(--sync-ok); box-shadow: 0 0 8px var(--sync-ok); }
-        .pulse { animation: shadow-pulse 2s infinite; }
-        @keyframes shadow-pulse { 0% { box-shadow: 0 0 0 0px rgba(46, 204, 113, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); } 100% { box-shadow: 0 0 0 0px rgba(46, 204, 113, 0); } }
-
-        /* Layout */
-        .top-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
+        .sync-dot.offline { background: var(--sync-err); }
         .header-layout { display: grid; grid-template-columns: 1fr 1.5fr; gap: 15px; margin-bottom: 20px; }
         @media (max-width: 800px) { .header-layout { grid-template-columns: 1fr; } }
-        .card { background: var(--bg-card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: 0.3s; }
-        
-        /* Stats Styles */
         .cash-flow-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
         .stat-box { padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.02); border: 1px solid var(--border); }
-        .stat-label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
-        .stat-value { font-size: 20px; font-weight: 800; margin-top: 4px; }
-        .val-in { color: #2ecc71; }
-        .val-out { color: #e74c3c; }
-
+        .stat-value { font-size: 20px; font-weight: 800; }
         .burn-track { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 15px; }
-        .burn-fill { background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c); height: 100%; transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-
-        button { background-color: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; }
-        button:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-outline { background: transparent; color: #3498db; border: 1.5px solid #3498db; }
-        
-        input, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text-main); font-size: 14px; }
-        .grid-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
-        @media (max-width: 900px) { .grid-layout { grid-template-columns: 1fr; } }
+        .burn-fill { background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c); height: 100%; transition: width 0.8s ease; }
+        button { background-color: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; }
+        input, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--border); }
     </style>
 </head>
 <body>
 
-    <div class="top-bar">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
         <div>
             <div class="sync-container">
                 <div id="syncDot" class="sync-dot"></div>
-                <span id="syncText">CONNECTING...</span>
-                <span id="lastUpdate" style="font-weight: normal; opacity: 0.7; margin-left: 10px;"></span>
+                <span id="syncText">INITIALIZING...</span>
             </div>
-            <h1 style="margin:0;">Household Hub <span style="font-size: 12px; color: #e74c3c;">V35</span></h1>
+            <h1 style="margin:0;">Household Dashboard <span style="font-size: 12px; color: #777;">V37</span></h1>
         </div>
-        <div style="display: flex; gap: 8px;">
-            <button onclick="toggleTheme()" style="background: #2c3e50;">🌙</button>
-            <button onclick="openMasterModal()" style="background: #9b59b6;">📋 Master</button>
-        </div>
+        <button onclick="toggleTheme()" style="width:auto; background: #2c3e50;">🌙</button>
     </div>
 
-    <div class="header-layout">
+    <div class="header-layout" id="mainApp" style="display:none;">
         <div class="card">
-            <label style="font-size: 12px; font-weight: bold; color: var(--text-muted);">Starting Balance</label>
-            <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()" style="font-size: 28px; font-weight: 900; border: none; padding: 5px 0; background: transparent;">
-            <div style="display: flex; gap: 8px; margin-top: 10px;">
-                <button class="btn-outline" style="flex:1; font-size: 11px;" onclick="openAccountModal()">Accounts</button>
-                <button class="btn-outline" style="flex:1; font-size: 11px;" onclick="openCategoryModal()">Categories</button>
-            </div>
+            <label style="font-size: 11px; font-weight: bold; color: var(--text-muted);">Starting Balance</label>
+            <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()" style="font-size: 24px; font-weight: 900; border: none; background: transparent;">
         </div>
-
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="font-size: 13px; margin:0;">📊 <span id="summaryMonthLabel">Month</span> Forecast</h3>
-                <span id="summaryNetLabel" style="font-weight: 800; font-size: 14px;">$0</span>
-            </div>
+            <h3 style="font-size: 13px; margin:0;">📊 <span id="summaryMonthLabel">Month</span> Forecast</h3>
             <div class="cash-flow-stats">
                 <div class="stat-box">
-                    <div class="stat-label">Expected In</div>
-                    <div class="stat-value val-in" id="summaryIncome">$0</div>
+                    <div style="font-size: 10px; color: var(--text-muted);">In (+)</div>
+                    <div class="stat-value" id="summaryIncome" style="color:#2ecc71;">$0</div>
                 </div>
                 <div class="stat-box">
-                    <div class="stat-label">Expected Out</div>
-                    <div class="stat-value val-out" id="summaryExpense">$0</div>
+                    <div style="font-size: 10px; color: var(--text-muted);">Out (-)</div>
+                    <div class="stat-value" id="summaryExpense" style="color:#e74c3c;">$0</div>
                 </div>
             </div>
-            <div class="burn-track">
-                <div class="burn-fill" id="summaryBurnBar" style="width: 0%;"></div>
-            </div>
+            <div class="burn-track"><div class="burn-fill" id="summaryBurnBar" style="width: 0%;"></div></div>
         </div>
     </div>
 
-    <div class="grid-layout">
-        <div class="card">
-            <h2>Add Transaction</h2>
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-                <input type="text" id="eventName" placeholder="Transaction Name (e.g. Rent)">
-                <div style="display: flex; gap: 10px;">
-                    <select id="eventType"><option value="income">Income (+)</option><option value="expense" selected>Expense (-)</option></select>
-                    <input type="number" id="eventAmount" placeholder="$ 0.00" inputmode="decimal">
-                </div>
-                <input type="date" id="eventDate">
-                <select id="eventCategory"></select>
-                <select id="eventAccount"></select>
-                <button onclick="processInput()" style="background: #2ecc71; padding: 15px; font-size: 16px;">Add to Shared List</button>
-            </div>
-        </div>
-
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h2>Ledger</h2>
-                <div style="display:flex; gap: 5px;">
-                    <button class="btn-outline" onclick="navigateCalendar(-1)">◀</button>
-                    <button class="btn-outline" onclick="navigateCalendar(1)">▶</button>
-                </div>
-            </div>
-            <div id="calendarMonthLabel" style="font-weight: bold; margin-bottom: 10px; color: #3498db;"></div>
-            <div style="overflow-x: auto;">
-                <table style="width:100%; border-collapse: collapse; font-size: 13px;">
-                    <thead><tr style="text-align: left; border-bottom: 2px solid var(--border);">
-                        <th>Date</th><th>Item</th><th>Amount</th><th>Status</th>
-                    </tr></thead>
-                    <tbody id="ledgerBody"></tbody>
-                </table>
-            </div>
-        </div>
+    <div class="card" id="inputCard" style="display:none;">
+        <h2>Add Transaction</h2>
+        <input type="text" id="eventName" placeholder="Name">
+        <input type="number" id="eventAmount" placeholder="Amount ($)" inputmode="decimal">
+        <input type="date" id="eventDate">
+        <select id="eventType"><option value="expense">Expense</option><option value="income">Income</option></select>
+        <button onclick="processInput()" style="background: #2ecc71;">Save to Cloud</button>
     </div>
 
     <script>
@@ -146,50 +86,46 @@
           apiKey: "AIzaSyBqClFnCHFdn8bGruQxqg7CBK2YxoZlK7U",
           authDomain: "rosa-household-budget.firebaseapp.com",
           projectId: "rosa-household-budget",
+          storageBucket: "rosa-household-budget.appspot.com",
           messagingSenderId: "157279634227",
           appId: "1:157279634227:web:62087cd6adebbe55ea3446"
         };
+
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        let rawEvents = [];
-        let currentMonth = new Date().getMonth();
-        let currentYear = new Date().getFullYear();
-        const mNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        function setupApp() {
+            const syncDot = document.getElementById('syncDot');
+            const syncText = document.getElementById('syncText');
 
-        // LIVE SYNC LISTENER
-        function setupSync() {
-            const dot = document.getElementById('syncDot');
-            const text = document.getElementById('syncText');
-
-            // Listen for connection state
+            // Attempt to connect to the "events" collection
             db.collection("events").onSnapshot((snapshot) => {
-                rawEvents = [];
-                snapshot.forEach(doc => rawEvents.push({id: doc.id, ...doc.data()}));
+                syncDot.className = 'sync-dot online';
+                syncText.innerText = 'LIVE SYNC ACTIVE';
+                document.getElementById('mainApp').style.display = 'grid';
+                document.getElementById('inputCard').style.display = 'block';
                 
-                // Update UI for connection success
-                dot.classList.add('online', 'pulse');
-                text.innerText = "LIVE SYNC ACTIVE";
-                document.getElementById('lastUpdate').innerText = "Updated " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                let income = 0; let expense = 0;
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if(data.type === 'income') income += data.amount;
+                    else expense += data.amount;
+                });
+
+                document.getElementById('summaryIncome').innerText = `$${income.toFixed(0)}`;
+                document.getElementById('summaryExpense').innerText = `$${expense.toFixed(0)}`;
+                const pct = income > 0 ? (expense / income) * 100 : 0;
+                document.getElementById('summaryBurnBar').style.width = Math.min(pct, 100) + '%';
                 
-                renderApp();
             }, (error) => {
-                dot.classList.remove('online', 'pulse');
-                text.innerText = "OFFLINE / ERROR";
+                syncDot.className = 'sync-dot offline';
+                syncText.innerText = 'CONNECTION ERROR';
+                alert("FIREBASE ERROR: " + error.message + "\n\nPlease ensure your Firestore Rules are set to 'allow read, write: if true;'");
             });
 
             db.collection("settings").doc("balance").onSnapshot(doc => {
                 if(doc.exists) document.getElementById('startBalance').value = doc.data().amount;
-                renderApp();
             });
-
-            // Populate Dropdowns (static for now, can be dynamic from DB)
-            const cats = ["Housing", "Food", "Transport", "Utilities", "Fun", "Income"];
-            const accs = ["Joint Checking", "Savings", "Credit Card"];
-            const catSel = document.getElementById('eventCategory');
-            const accSel = document.getElementById('eventAccount');
-            cats.forEach(c => catSel.innerHTML += `<option value="${c}">${c}</option>`);
-            accs.forEach(a => accSel.innerHTML += `<option value="${a}">${a}</option>`);
         }
 
         async function processInput() {
@@ -197,66 +133,24 @@
             const amt = parseFloat(document.getElementById('eventAmount').value);
             const date = document.getElementById('eventDate').value;
             if(!name || isNaN(amt) || !date) return;
-
-            const ev = {
+            
+            await db.collection("events").add({
                 name, amount: amt, currentDate: date, 
-                type: document.getElementById('eventType').value,
-                category: document.getElementById('eventCategory').value,
-                account: document.getElementById('eventAccount').value,
-                isPaid: false,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            };
-
-            await db.collection("events").add(ev);
+                type: document.getElementById('eventType').value
+            });
             document.getElementById('eventName').value = '';
             document.getElementById('eventAmount').value = '';
         }
 
-        function renderApp() {
-            let bal = parseFloat(document.getElementById('startBalance').value) || 0;
-            let incTotal = 0; let expTotal = 0;
-            const targetMonth = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}`;
-            
-            document.getElementById('calendarMonthLabel').innerText = mNames[currentMonth] + " " + currentYear;
-            document.getElementById('summaryMonthLabel').innerText = mNames[currentMonth];
-
-            const tbody = document.getElementById('ledgerBody');
-            tbody.innerHTML = '';
-
-            // Sort by date
-            const sorted = rawEvents.sort((a,b) => new Date(a.currentDate) - new Date(b.currentDate));
-
-            sorted.forEach(e => {
-                if(e.currentDate.startsWith(targetMonth)) {
-                    if(e.type === 'income') incTotal += e.amount; else expTotal += e.amount;
-                    
-                    const tr = document.createElement('tr');
-                    tr.style.borderBottom = "1px solid var(--border)";
-                    tr.innerHTML = `
-                        <td style="padding:10px 0;">${e.currentDate.split('-')[2]}</td>
-                        <td>${e.name}</td>
-                        <td style="color:${e.type==='income'?'#2ecc71':'#e74c3c'}">$${e.amount}</td>
-                        <td><button style="font-size:10px; padding:4px;" onclick="deleteItem('${e.id}')">Delete</button></td>
-                    `;
-                    tbody.appendChild(tr);
-                }
-            });
-
-            // Update Header Visuals
-            document.getElementById('summaryIncome').innerText = `$${incTotal.toFixed(0)}`;
-            document.getElementById('summaryExpense').innerText = `$${expTotal.toFixed(0)}`;
-            document.getElementById('summaryNetLabel').innerText = `$${(incTotal - expTotal).toFixed(0)} Left`;
-            
-            const pct = incTotal > 0 ? Math.min((expTotal / incTotal) * 100, 100) : (expTotal > 0 ? 100 : 0);
-            document.getElementById('summaryBurnBar').style.width = pct + "%";
+        function updateBalanceToDB() {
+            db.collection("settings").doc("balance").set({ amount: parseFloat(document.getElementById('startBalance').value) || 0 });
         }
 
-        function deleteItem(id) { if(confirm("Delete this?")) db.collection("events").doc(id).delete(); }
-        function navigateCalendar(dir) { currentMonth += dir; if(currentMonth>11){currentMonth=0;currentYear++;} if(currentMonth<0){currentMonth=11;currentYear--;} renderApp(); }
-        function updateBalanceToDB() { db.collection("settings").doc("balance").set({ amount: parseFloat(document.getElementById('startBalance').value) || 0 }); }
-        function toggleTheme() { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); }
+        function toggleTheme() {
+            document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+        }
 
-        window.onload = setupSync;
+        window.onload = setupApp;
     </script>
 </body>
 </html>
