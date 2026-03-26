@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard</title>
+    <title>Household Dashboard V46</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
@@ -51,7 +51,6 @@
         .btn-icon { width: auto; padding: 8px 12px; }
         .btn-export { background-color: #27ae60; }
         .btn-sweep { background-color: #9b59b6; margin-bottom: 15px; }
-        .btn-wrapped { background: linear-gradient(45deg, #8e44ad, #3498db); color: white; border: none; animation: pop 2s infinite; }
         
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
         th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
@@ -115,12 +114,11 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V43</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V46</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
             <button class="btn-icon" onclick="openMasterModal()" style="background:#9b59b6; color:white;">📋 Master List</button>
-            <button class="btn-icon btn-wrapped" onclick="showYearInReview()">🎉 Year Review</button>
             <button class="btn-icon btn-export" onclick="exportCSV()">📥 Export CSV</button>
             <button class="btn-icon btn-sandbox" id="sandboxBtn" onclick="toggleSandbox()">🧪 Sandbox</button>
             <button class="btn-icon btn-settings" onclick="openCategoryModal()">⚙️ Categories</button>
@@ -138,7 +136,7 @@
     <div id="masterModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
         <div style="background:var(--bg-card); padding:25px; border-radius:8px; width:500px; max-width:90%; color:var(--text-main); max-height: 80vh; display: flex; flex-direction: column;">
             <h2 style="margin-bottom: 5px;">📋 Master Bill List</h2>
-            <p style="font-size:12px; color:var(--text-muted); margin-bottom: 15px;">Manage the source templates for all your recurring items.</p>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom: 15px;">Sorted chronologically by next due date.</p>
             <div id="masterListContainer" style="overflow-y: auto; flex:1; margin-bottom:15px; border: 1px solid var(--border); padding: 10px; border-radius: 6px;"></div>
             <button class="btn-outline" onclick="document.getElementById('masterModal').style.display='none'">Close</button>
         </div>
@@ -181,27 +179,6 @@
                 <button onclick="addCustomCategory()" style="width: auto; margin-bottom:2px;">Add</button>
             </div>
             <button class="btn-outline" onclick="document.getElementById('categoryModal').style.display='none'" style="margin-top: 20px;">Done</button>
-        </div>
-    </div>
-
-    <div id="wrappedModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; justify-content:center; align-items:center;">
-        <div style="background: linear-gradient(135deg, #1abc9c, #3498db); padding:30px; border-radius:12px; width:450px; color:white; text-align:center; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-            <h1 style="color:white; margin-bottom:5px;">🎉 Year in Review</h1>
-            <div style="background:rgba(255,255,255,0.1); padding:15px; border-radius:8px; margin:20px 0;">
-                <h3 style="color:white; margin:0 0 5px 0;">Biggest Spending Category</h3>
-                <h2 style="color:#f1c40f; margin:0;" id="wrapTopCat">Loading...</h2>
-            </div>
-            <div style="display:flex; gap:15px; margin-bottom:20px;">
-                <div style="flex:1; background:rgba(255,255,255,0.1); padding:15px; border-radius:8px;">
-                    <div style="font-size:12px; opacity:0.8; font-weight:bold;">Total Saved</div>
-                    <div style="font-size:20px; font-weight:bold;" id="wrapSaved">$0</div>
-                </div>
-                <div style="flex:1; background:rgba(255,255,255,0.1); padding:15px; border-radius:8px;">
-                    <div style="font-size:12px; opacity:0.8; font-weight:bold;">Debt Destroyed</div>
-                    <div style="font-size:20px; font-weight:bold;" id="wrapDebt">$0</div>
-                </div>
-            </div>
-            <button onclick="document.getElementById('wrappedModal').style.display='none'" style="background:white; color:#3498db;">Close</button>
         </div>
     </div>
 
@@ -405,6 +382,7 @@
     </div>
 
     <script>
+        // GLOBAL ERROR CATCHER
         window.onerror = function(msg, url, lineNo, columnNo, error) {
             alert("JS CRASH: " + msg + "\nLine: " + lineNo);
             return false;
@@ -549,9 +527,13 @@
                     generateSchedule();
                 } else {
                     document.getElementById('cloudStatus').innerHTML = `Archiving...`; 
-                    const batch = db.batch(); 
-                    toDelete.forEach(e => batch.delete(db.collection("events").doc(e.id))); 
-                    await batch.commit();
+                    for (let i = 0; i < toDelete.length; i += 400) {
+                        let chunk = toDelete.slice(i, i + 400);
+                        let batch = db.batch();
+                        chunk.forEach(e => batch.delete(db.collection("events").doc(e.id)));
+                        await batch.commit();
+                    }
+                    document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`;
                 }
             }
         }
@@ -583,7 +565,17 @@
 
         function addDebt() { const n=document.getElementById('debtName').value; const b=parseFloat(document.getElementById('debtBalance').value); const a=parseFloat(document.getElementById('debtAPR').value); const p=parseFloat(document.getElementById('debtPay').value); if(!n||isNaN(b)||isNaN(a)||isNaN(p)) return; debts.push({ id: Date.now().toString(), name:n, balance:b, apr:a, pay:p }); document.getElementById('debtName').value=''; document.getElementById('debtBalance').value=''; document.getElementById('debtAPR').value=''; document.getElementById('debtPay').value=''; updateDebtsToDB(); }
         function deleteDebt(id) { debts = debts.filter(d => d.id !== id); updateDebtsToDB(); }
-        function renderDebts() { const list = document.getElementById('debtList'); list.innerHTML = ''; debts.forEach(d => { let r = (d.apr / 100) / 12; let months = (d.pay <= r * d.balance) ? Infinity : -Math.log(1 - (r * d.balance) / d.pay) / Math.log(1 + r); let payoffText = months === Infinity ? '<span style="color:#e74c3c">Will never pay off!</span>' : `${Math.ceil(months)} months to freedom`; list.innerHTML += `<div class="debt-container"><div style="display:flex; justify-content:space-between; font-weight:bold; font-size:13px;"><span>${d.name}</span><span>$${d.balance}</span></div><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Paying $${d.pay}/mo at ${d.apr}% APR</div><div style="font-size:12px; font-weight:bold; color:#e67e22;">⏱ ${payoffText}</div><button onclick="deleteDebt('${d.id}')" style="background:transparent; color:#e74c3c; border:none; padding:0; text-align:left; font-size:10px; margin-top:5px; cursor:pointer;">Remove</button></div>`; }); }
+        function renderDebts() { 
+            const list = document.getElementById('debtList'); list.innerHTML = ''; 
+            debts.forEach(d => { 
+                let r = (d.apr / 100) / 12; 
+                let months = 0;
+                if (r === 0) { months = d.pay > 0 ? (d.balance / d.pay) : Infinity; }
+                else { months = (d.pay <= r * d.balance) ? Infinity : -Math.log(1 - (r * d.balance) / d.pay) / Math.log(1 + r); }
+                let payoffText = months === Infinity ? '<span style="color:#e74c3c">Will never pay off!</span>' : `${Math.ceil(months)} months to freedom`; 
+                list.innerHTML += `<div class="debt-container"><div style="display:flex; justify-content:space-between; font-weight:bold; font-size:13px;"><span>${d.name}</span><span>$${d.balance}</span></div><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Paying $${d.pay}/mo at ${d.apr}% APR</div><div style="font-size:12px; font-weight:bold; color:#e67e22;">⏱ ${payoffText}</div><button onclick="deleteDebt('${d.id}')" style="background:transparent; color:#e74c3c; border:none; padding:0; text-align:left; font-size:10px; margin-top:5px; cursor:pointer;">Remove</button></div>`; 
+            }); 
+        }
 
         function openAccountModal() { document.getElementById('accountModal').style.display = 'flex'; renderAccountList(); }
         function renderAccountList() { const list = document.getElementById('accountListContainer'); list.innerHTML = ''; customAccounts.forEach(acc => { list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border);"><span><span class="badge" style="background:${acc.color}; color:white;">${acc.name}</span></span><button onclick="deleteCustomAccount('${acc.id}')" style="background:#e74c3c; padding:2px 5px; width:auto; font-size:10px; border:none; color:white; border-radius:3px;">Del</button></div>`; }); }
@@ -602,19 +594,50 @@
         }
         function addCustomCategory() { const n = document.getElementById('newCatName').value.trim(); const b = parseFloat(document.getElementById('newCatBudget').value) || 0; const bkt = document.getElementById('newCatBucket').value; if(!n) return; customCategories.push({ id: 'cat_' + Date.now().toString(), name:n, budget: b, bucket: bkt }); document.getElementById('newCatName').value = ''; document.getElementById('newCatBudget').value = ''; renderCategoryList(); updateCategoriesToDB(); }
         function deleteCustomCategory(id) { let catObj = customCategories.find(c => c.id === id); if(getActiveEvents().some(ev => ev.category === catObj.name)) { alert("Category in use!"); return; } customCategories = customCategories.filter(cat => cat.id !== id); renderCategoryList(); updateCategoriesToDB(); }
-        function refreshCategoryDropdown() { const select = document.getElementById('eventCategory'); let val = select.value; select.innerHTML = ''; customCategories.forEach(cat => { select.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); if(customCategories.some(cat => cat.name === val)) select.value = val; const filterSelect = document.getElementById('filterCategory'); let fVal = filterSelect.value; filterSelect.innerHTML = '<option value="all">All Categories</option>'; customCategories.forEach(cat => { filterSelect.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); if(customCategories.some(cat => cat.name === fVal)) filterSelect.value = fVal; }
+        function refreshCategoryDropdown() { 
+            const select = document.getElementById('eventCategory'); let val = select.value; select.innerHTML = ''; 
+            customCategories.forEach(cat => { select.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); 
+            if(customCategories.some(cat => cat.name === val)) select.value = val; 
+            
+            const filterSelect = document.getElementById('filterCategory'); 
+            if(filterSelect) {
+                let fVal = filterSelect.value; filterSelect.innerHTML = '<option value="all">All Categories</option>'; 
+                customCategories.forEach(cat => { filterSelect.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); 
+                if(customCategories.some(cat => cat.name === fVal)) filterSelect.value = fVal; 
+            }
+        }
 
         function openMasterModal() { document.getElementById('masterModal').style.display = 'flex'; renderMasterList(); }
         function renderMasterList() {
-            const list = document.getElementById('masterListContainer'); list.innerHTML = ''; let a = getActiveEvents(); let uniqueSeries = {}; let today = new Date().toISOString().split('T')[0];
+            const list = document.getElementById('masterListContainer'); list.innerHTML = ''; 
+            let a = getActiveEvents(); 
+            let uniqueSeries = {}; 
+            let today = new Date().toISOString().split('T')[0];
+            
             a.forEach(e => { let sId = e.seriesId || e.name; if (!uniqueSeries[sId]) { uniqueSeries[sId] = []; } uniqueSeries[sId].push(e); });
+            
             if (Object.keys(uniqueSeries).length === 0) { list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No recurring items found.</div>'; return; }
+            
+            let masterItems = [];
             for (let sId in uniqueSeries) {
-                let seriesEvents = uniqueSeries[sId]; seriesEvents.sort((x, y) => new Date(x.currentDate) - new Date(y.currentDate));
+                let seriesEvents = uniqueSeries[sId]; 
+                seriesEvents.sort((x, y) => new Date(x.currentDate) - new Date(y.currentDate));
                 let repEvent = seriesEvents.find(e => e.currentDate >= today) || seriesEvents[seriesEvents.length - 1];
-                let typeIcon = repEvent.type === 'income' ? '🟩' : (repEvent.type === 'sinking' ? '🟦' : '🟥');
-                list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);"><div><strong>${typeIcon} ${repEvent.name}</strong><br><span style="font-size:11px; color:var(--text-muted);">${repEvent.category} • $${repEvent.amount.toFixed(2)}</span></div><div style="display:flex; gap:5px;"><button onclick="editMaster('${repEvent.id}')" style="background:#f39c12; padding:5px 10px; font-size:11px; width:auto;">Edit</button><button onclick="deleteMasterSeries('${sId}')" style="background:#e74c3c; padding:5px 10px; font-size:11px; width:auto;">Del All</button></div></div>`;
+                masterItems.push({ sId: sId, event: repEvent });
             }
+
+            masterItems.sort((a, b) => new Date(a.event.currentDate) - new Date(b.event.currentDate));
+
+            masterItems.forEach(item => {
+                let repEvent = item.event;
+                let sId = item.sId;
+                let typeIcon = repEvent.type === 'income' ? '🟩' : (repEvent.type === 'sinking' ? '🟦' : '🟥');
+                
+                let dParts = repEvent.currentDate.split('-');
+                let dateLabel = `${mNames[parseInt(dParts[1])-1]} ${dParts[2]}`;
+
+                list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);"><div><strong>${typeIcon} ${repEvent.name}</strong><br><span style="font-size:11px; color:var(--text-muted);">${repEvent.category} • $${repEvent.amount.toFixed(2)} • <span style="color:#3498db; font-weight:bold;">Next: ${dateLabel}</span></span></div><div style="display:flex; gap:5px;"><button onclick="editMaster('${repEvent.id}')" style="background:#f39c12; padding:5px 10px; font-size:11px; width:auto;">Edit</button><button onclick="deleteMasterSeries('${sId}')" style="background:#e74c3c; padding:5px 10px; font-size:11px; width:auto;">Del All</button></div></div>`;
+            });
         }
         function editMaster(id) { document.getElementById('masterModal').style.display = 'none'; editEvent(id); setTimeout(() => { document.getElementById('editScope').value = 'future'; }, 100); }
         async function deleteMasterSeries(sId) {
@@ -649,14 +672,15 @@
             if(insights.length > 0) { iBox.style.display = 'block'; insights.forEach(i => iList.innerHTML += `<li style="margin-bottom:5px;">${i}</li>`); } else iBox.style.display = 'none';
         }
 
-        // NEW: Visualizer Calculation Function
         function updateCashFlowVisual(inc, exp) {
             document.getElementById('summaryMonthLabel').innerText = mNames[currentCalMonth] || "Month";
             document.getElementById('summaryIncome').innerText = `$${inc.toFixed(0)}`;
             document.getElementById('summaryExpense').innerText = `$${exp.toFixed(0)}`;
+            
             let net = inc - exp;
             document.getElementById('summaryNetLabel').innerText = `Net: $${net.toFixed(0)}`;
             document.getElementById('summaryNetLabel').style.color = net >= 0 ? "var(--text-main)" : "#e74c3c";
+            
             let pct = inc > 0 ? Math.min((exp / inc) * 100, 100) : (exp > 0 ? 100 : 0);
             document.getElementById('summaryBurnBar').style.width = pct + "%";
             document.getElementById('summaryBurnBar').style.background = pct > 90 ? '#e74c3c' : (pct > 75 ? '#f39c12' : '#2ecc71');
@@ -700,7 +724,6 @@
             document.getElementById('savingsBar').style.width = `${Math.min(sPct, 100)}%`; document.getElementById('savingsBar').style.background = sPct < 15 ? '#e74c3c' : '#2ecc71';
         }
 
-        // V43: The identical checkbook math and logic from V32
         function generateSchedule() {
             let bal = parseFloat(document.getElementById('startBalance').value) || 0; let a = getActiveEvents(); let opt = false; let safe = 0;
             let processingArr = JSON.parse(JSON.stringify(a));
@@ -734,7 +757,6 @@
                 } safe++;
             }
             
-            // NEW: Calculate Monthly Cash Flow for the visual
             let targetMonth = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}`;
             let monthInc = 0; let monthExp = 0;
             processingArr.forEach(e => {
@@ -789,7 +811,6 @@
         function toggleSandbox() { isSandbox = !isSandbox; document.getElementById('sandboxBanner').style.display = isSandbox ? 'block' : 'none'; document.getElementById('sandboxBtn').innerText = isSandbox ? '🛑 Exit Sandbox' : '🧪 Sandbox Mode'; document.getElementById('sandboxBtn').style.backgroundColor = isSandbox ? '#c0392b' : '#e67e22'; if(isSandbox) { sandboxEvents = JSON.parse(JSON.stringify(rawEvents)); } generateSchedule(); }
         function toggleCalendarView() { calViewMode = calViewMode === 'month' ? 'week' : 'month'; document.getElementById('toggleViewBtn').innerText = calViewMode === 'month' ? 'Switch to Weekly' : 'Switch to Monthly'; generateSchedule(); }
         function calculateSubBurnRate(events) { let subs = {}; events.forEach(e => { if(e.category === 'Subscriptions') { if(!subs[e.name]) subs[e.name] = e.amount; } }); let total = Object.values(subs).reduce((a,b)=>a+b, 0); document.getElementById('subBurnRate').innerText = `$${total.toFixed(2)}`; }
-        function showYearInReview() { let a = getActiveEvents(); let catTotals = {}; let totalSaved = 0; let totalDebt = 0; let currentYear = new Date().getFullYear().toString(); a.forEach(e => { if(e.isPaid && e.currentDate.startsWith(currentYear)) { if(e.type === 'expense' && e.category !== 'Income' && e.category !== 'Savings') { catTotals[e.category] = (catTotals[e.category]||0) + e.amount; } if(e.type === 'sinking') totalSaved += e.amount; if(e.projectTag === 'Sweeper' || e.name.toLowerCase().includes('card') || e.name.toLowerCase().includes('debt')) totalDebt += e.amount; } }); let topCat = "No Data Yet"; let topAmt = 0; for(let [cat, amt] of Object.entries(catTotals)) { if(amt > topAmt) { topAmt = amt; topCat = cat; } } document.getElementById('wrapTopCat').innerText = `${topCat} ($${topAmt.toFixed(0)})`; document.getElementById('wrapSaved').innerText = `$${totalSaved.toFixed(0)}`; document.getElementById('wrapDebt').innerText = `$${totalDebt.toFixed(0)}`; document.getElementById('wrappedModal').style.display = 'flex'; }
         
         function exportCSV() { 
             let activeArr = getActiveEvents(); let csv = "Paid,Date,Name,Type,Category,Project,Account,Amount,Auto-Shifted\n"; 
