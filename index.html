@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard V41</title>
+    <title>Household Dashboard V42</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
@@ -89,7 +89,7 @@
                 <div id="syncDot" class="sync-dot"></div>
                 <span id="syncText">SYNCING...</span>
             </div>
-            <h1 style="margin:0; color: var(--heading);">Household Hub <span style="font-size: 12px; color: #e74c3c;">V41</span></h1>
+            <h1 style="margin:0; color: var(--heading);">Household Hub <span style="font-size: 12px; color: #e74c3c;">V42</span></h1>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="btn-outline" onclick="openMasterModal()">📋 Master List</button>
@@ -264,7 +264,6 @@
     <div id="masterModal" class="modal-overlay"><div class="card" style="width:500px; max-height:80vh; overflow-y:auto;"><h2>📋 Master Templates</h2><p style="font-size:12px; color:var(--text-muted); margin-bottom:15px;">Manage the source templates for all your recurring items.</p><div id="masterListContainer"></div><button class="btn-outline" style="width:100%; margin-top:15px;" onclick="document.getElementById('masterModal').style.display='none'">Close</button></div></div>
 
     <script>
-        // GLOBAL ERROR CATCHER
         window.onerror = function(msg, url, lineNo, columnNo, error) { 
             alert("SYSTEM ALERT: " + msg + "\nLine: " + lineNo); 
             return false; 
@@ -288,7 +287,23 @@
 
         function getActiveEvents() { return isSandbox ? sandboxEvents : rawEvents; }
 
-        window.onload = function() { loadTheme(); setupListeners(); };
+        window.onload = function() { 
+            loadTheme(); // Restored logic
+            setupListeners(); 
+        };
+
+        function loadTheme() {
+            if(localStorage.getItem('budgetAppTheme') === 'dark') {
+                document.body.setAttribute('data-theme', 'dark');
+            }
+        }
+
+        function toggleTheme() {
+            let isDark = document.body.getAttribute('data-theme') === 'dark';
+            document.body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('budgetAppTheme', isDark ? 'light' : 'dark');
+            if(myChart) updateAnalytics(getActiveEvents()); // refresh chart colors
+        }
 
         function setupListeners() {
             db.collection("events").onSnapshot(snap => {
@@ -397,8 +412,6 @@
             // Search Filter
             let search = document.getElementById('searchLedger').value.toLowerCase();
             let status = document.getElementById('filterStatus').value;
-            
-            // BUG FIX: Added protective fallback for missing category filter during edge cases
             let catFilterEl = document.getElementById('filterCategory');
             let catFilter = catFilterEl ? catFilterEl.value : 'all';
 
@@ -471,8 +484,6 @@
             const l=document.getElementById('debtList'); l.innerHTML=''; 
             debts.forEach(d => { 
                 let r = (d.apr / 100) / 12; 
-                
-                // BUG FIX: Safeguard against 0% APR math crash
                 let months = 0;
                 if (r === 0) { months = d.pay > 0 ? d.balance / d.pay : Infinity; } 
                 else { months = (d.pay <= r * d.balance) ? Infinity : -Math.log(1 - (r * d.balance) / d.pay) / Math.log(1 + r); }
@@ -593,7 +604,6 @@
         function cancelEdit() { currentlyEditingEvent = null; document.getElementById('saveBtn').innerText = "Save Transaction"; document.getElementById('cancelEditBtn').style.display = 'none'; document.getElementById('editScopeContainer').style.display = 'none'; document.getElementById('eventName').value=''; document.getElementById('eventAmount').value=''; toggleGoalInput(); }
         function navigateCalendar(dir) { currentCalMonth += dir; if(currentCalMonth>11){currentCalMonth=0;currentCalYear++;} if(currentCalMonth<0){currentCalMonth=11;currentCalYear--;} generateSchedule(); }
         function toggleGoalInput() { document.getElementById('goalTargetContainer').style.display = document.getElementById('eventType').value === 'sinking' ? 'flex' : 'none'; }
-        function toggleTheme() { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); }
         function updateBalanceToDB() { db.collection("settings").doc("balance").set({ amount: parseFloat(document.getElementById('startBalance').value) || 0 }); }
         
         // MODAL LOGIC
@@ -611,8 +621,6 @@
         function refreshCategoryDropdown() { 
             const s = document.getElementById('eventCategory'); s.innerHTML = ''; 
             customCategories.forEach(c => s.innerHTML += `<option value="${c.name}">${c.name}</option>`); 
-            
-            // BUG FIX: Restored the Category Search Filter Dropdown
             const filterSelect = document.getElementById('filterCategory'); 
             if(filterSelect) {
                 let fVal = filterSelect.value; 
@@ -622,18 +630,12 @@
             }
         }
 
-        // BUG FIX: Robust Archive Logic to prevent Firebase Overload Crash
         async function archivePaid() { 
             if(confirm("Permanently archive all paid items?")) { 
                 let paidEvents = rawEvents.filter(e => e.isPaid);
-                
-                if(isSandbox) { 
-                    sandboxEvents = sandboxEvents.filter(e => !e.isPaid); 
-                    generateSchedule(); 
-                } else {
+                if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => !e.isPaid); generateSchedule(); } 
+                else {
                     document.getElementById('syncText').innerText = "ARCHIVING...";
-                    
-                    // Firebase has a hard limit of 500 actions per batch. We chunk it.
                     for (let i = 0; i < paidEvents.length; i += 400) {
                         let chunk = paidEvents.slice(i, i + 400);
                         let batch = db.batch();
@@ -652,8 +654,6 @@
             getActiveEvents().forEach(e => { let sid = e.seriesId || e.name; if(!unique[sid]) unique[sid] = []; unique[sid].push(e); });
             for(let id in unique) { let evs = unique[id]; evs.sort((a,b)=>new Date(a.currentDate)-new Date(b.currentDate)); let e = evs[0]; list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid var(--border); align-items:center;"><div><strong>${e.name}</strong><br><span style="font-size:11px; color:var(--text-muted);">$${e.amount}</span></div><div><button onclick="editEvent('${e.id}'); document.getElementById('masterModal').style.display='none';" style="width:auto; padding:5px 10px; background:#f39c12; font-size:11px;">Edit</button></div></div>`; }
         }
-        
-        function showYearInReview() { alert("Year in Review will generate at the end of the year!"); }
         function exportCSV() { 
             let csv="Date,Name,Amount,Type\n"; getActiveEvents().forEach(e=>csv+=`${e.currentDate},${e.name},${e.amount},${e.type}\n`); 
             let blob=new Blob([csv],{type:'text/csv'}); let url=window.URL.createObjectURL(blob); let a=document.createElement('a'); a.href=url; a.download='Household_Budget_Export.csv'; a.click(); 
