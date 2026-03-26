@@ -115,7 +115,7 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #777;">V26 Simplified</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V27</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
@@ -380,6 +380,12 @@
     </div>
 
     <script>
+        // GLOBAL ERROR CATCHER
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            alert("JS CRASH: " + msg + "\nLine: " + lineNo);
+            return false;
+        };
+
         const firebaseConfig = {
           apiKey: "AIzaSyBqClFnCHFdn8bGruQxqg7CBK2YxoZlK7U",
           authDomain: "rosa-household-budget.firebaseapp.com",
@@ -406,8 +412,9 @@
                 document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`;
                 if(!isSandbox) generateSchedule();
             }, (error) => { 
-                alert("FIREBASE LOCKOUT: Your database is rejecting the connection. Please go to the Firebase Console -> Firestore Database -> Rules, and change 'allow read, write: if false;' to 'allow read, write: if true;'");
-                console.error("Firestore Error:", error); 
+                alert("FIREBASE PERMISSION ERROR: Your database rules are blocking saves. Go to Firebase Console -> Firestore Database -> Rules. Ensure it says: allow read, write: if true;");
+                document.getElementById('cloudStatus').innerHTML = `<span style="color:#e74c3c; font-weight:bold;">Database Locked</span>`;
+                console.error(error); 
             });
 
             db.collection("settings").doc("accounts").onSnapshot((doc) => {
@@ -452,33 +459,47 @@
                 if(Math.ceil(Math.abs(new Date(cur) - new Date(start))/(1000*60*60*24)) > 730) break;
                 it++;
             }
-            if(isSandbox) { generateSchedule(); } else { document.getElementById('cloudStatus').innerHTML = `Syncing Batch...`; try { await batch.commit(); } catch(e) { console.log(e); } }
+            if(isSandbox) { 
+                generateSchedule(); 
+            } else { 
+                document.getElementById('cloudStatus').innerHTML = `Syncing Batch...`; 
+                try { 
+                    await batch.commit(); 
+                } catch(e) { 
+                    alert("FIREBASE SAVE REJECTED: Check Firestore Rules. Error: " + e.message); 
+                    console.log(e); 
+                } 
+            }
         }
 
         async function processInput() {
-            const name = document.getElementById('eventName').value; const type = document.getElementById('eventType').value; const cat = document.getElementById('eventCategory').value; const acc = document.getElementById('eventAccount').value; const flex = document.getElementById('eventFlexibility').value; const amt = parseFloat(document.getElementById('eventAmount').value); const date = document.getElementById('eventDate').value; const freq = document.getElementById('eventFrequency').value; const goal = parseFloat(document.getElementById('eventGoalTarget').value) || 0; const proj = document.getElementById('eventProject').value.trim(); const end = document.getElementById('eventEndDate').value;
-            if(!name || isNaN(amt) || !date) { alert("Fill all required fields!"); return; }
-            if(end && end < date) { alert("Error: The End Date cannot occur before the Start Date."); return; }
-            
-            if(currentlyEditingEvent) {
-                let scope = document.getElementById('editScope').value; let sId = currentlyEditingEvent.seriesId || currentlyEditingEvent.name; let targetDate = currentlyEditingEvent.originalDate;
-                if (scope === 'single') {
-                    deleteEventFromDb(currentlyEditingEvent.id);
-                    let newId = Date.now().toString() + "_single_" + Math.random().toString(36).substr(2,5);
-                    let newEv = { id: newId, name, type, category: cat, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: date, currentDate: date, shifted: false, isPaid: currentlyEditingEvent.isPaid, goalTarget: goal, projectTag: proj, seriesId: sId, endDate: end || "" };
-                    if(isSandbox) { sandboxEvents.push(newEv); generateSchedule(); } else { db.collection("events").doc(newId).set(newEv); }
-                } else {
-                    let toDelete = getActiveEvents().filter(e => (e.seriesId === sId || (!e.seriesId && e.name === sId)) && e.originalDate >= targetDate);
-                    if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => !toDelete.includes(e)); } else {
-                        const batch = db.batch(); toDelete.forEach(e => batch.delete(db.collection("events").doc(e.id))); await batch.commit();
+            try {
+                const name = document.getElementById('eventName').value; const type = document.getElementById('eventType').value; const cat = document.getElementById('eventCategory').value; const acc = document.getElementById('eventAccount').value; const flex = document.getElementById('eventFlexibility').value; const amt = parseFloat(document.getElementById('eventAmount').value); const date = document.getElementById('eventDate').value; const freq = document.getElementById('eventFrequency').value; const goal = parseFloat(document.getElementById('eventGoalTarget').value) || 0; const proj = document.getElementById('eventProject').value.trim(); const end = document.getElementById('eventEndDate').value;
+                if(!name || isNaN(amt) || !date) { alert("Fill all required fields! (Name, Amount, Date)"); return; }
+                if(end && end < date) { alert("Error: The End Date cannot occur before the Start Date."); return; }
+                
+                if(currentlyEditingEvent) {
+                    let scope = document.getElementById('editScope').value; let sId = currentlyEditingEvent.seriesId || currentlyEditingEvent.name; let targetDate = currentlyEditingEvent.originalDate;
+                    if (scope === 'single') {
+                        deleteEventFromDb(currentlyEditingEvent.id);
+                        let newId = Date.now().toString() + "_single_" + Math.random().toString(36).substr(2,5);
+                        let newEv = { id: newId, name, type, category: cat, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: date, currentDate: date, shifted: false, isPaid: currentlyEditingEvent.isPaid, goalTarget: goal, projectTag: proj, seriesId: sId, endDate: end || "" };
+                        if(isSandbox) { sandboxEvents.push(newEv); generateSchedule(); } else { db.collection("events").doc(newId).set(newEv); }
+                    } else {
+                        let toDelete = getActiveEvents().filter(e => (e.seriesId === sId || (!e.seriesId && e.name === sId)) && e.originalDate >= targetDate);
+                        if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => !toDelete.includes(e)); } else {
+                            const batch = db.batch(); toDelete.forEach(e => batch.delete(db.collection("events").doc(e.id))); await batch.commit();
+                        }
+                        await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end);
                     }
-                    await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end);
+                    cancelEdit(); return;
                 }
-                cancelEdit(); return;
+                document.getElementById('eventName').value=''; document.getElementById('eventAmount').value=''; document.getElementById('eventProject').value=''; document.getElementById('eventFrequency').value='once';
+                document.getElementById('eventGoalTarget').value='0'; document.getElementById('eventEndDate').value=''; toggleGoalInput();
+                await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end);
+            } catch (err) {
+                alert("CRASH DURING SAVE: " + err.message);
             }
-            document.getElementById('eventName').value=''; document.getElementById('eventAmount').value=''; document.getElementById('eventProject').value=''; document.getElementById('eventFrequency').value='once';
-            document.getElementById('eventGoalTarget').value='0'; document.getElementById('eventEndDate').value=''; toggleGoalInput();
-            await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end);
         }
 
         function editEvent(id) {
@@ -658,6 +679,8 @@
                 if(e.isPaid) tr.classList.add('is-paid'); else if(e.runningBalance<0) tr.classList.add('danger'); else if(e.shifted) tr.classList.add('shifted');
                 let fb=e.flexibility==='flexible'?'<span class="badge badge-flex">Flex</span>':''; let sb=e.type==='sinking'?'<span class="badge badge-sinking">Goal</span>':''; let pb=e.projectTag?`<span class="badge badge-project">📁 ${e.projectTag}</span>`:'';
                 let accData=customAccounts.find(a=>a.id===e.account); let ab=accData?`<span class="badge" style="background:${accData.color}; color:white;">${accData.name}</span>`:'';
+                
+                // NO RECEIPT UPLOADS
                 tr.innerHTML=`<td style="text-align:center;"><input type="checkbox" ${e.isPaid?'checked':''} onchange="togglePaid('${e.id}')"></td><td style="white-space:nowrap;">${e.currentDate}</td><td><strong>${e.name}</strong><br>${ab}${fb}${sb}${pb}</td><td class="${e.type==='income'?'income-text':''}">${e.type==='income'?'+':'-'}$${e.amount.toFixed(2)}</td><td><strong>$${(e.runningBalance || 0).toFixed(2)}</strong></td><td class="action-btns"><button class="btn-edit" onclick="editEvent('${e.id}')" title="Edit">✎</button><button class="btn-delete" onclick="deleteEventFromDb('${e.id}')" title="Delete">X</button></td>`;
                 tb.appendChild(tr);
             });
