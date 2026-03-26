@@ -115,16 +115,16 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V28</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V29</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
-            <button class="btn-icon btn-wrapped" onclick="showYearInReview()">🎉 Year in Review</button>
-            <button class="btn-icon btn-export" onclick="exportCSV()">📥 Export CSV</button>
+            <button class="btn-icon" onclick="openMasterModal()" style="background:#9b59b6; color:white;">📋 Master List</button>
+            <button class="btn-icon btn-wrapped" onclick="showYearInReview()">🎉 Year Review</button>
             <button class="btn-icon btn-sandbox" id="sandboxBtn" onclick="toggleSandbox()">🧪 Sandbox</button>
             <button class="btn-icon btn-settings" onclick="openCategoryModal()">⚙️ Categories</button>
             <button class="btn-icon btn-settings" onclick="openAccountModal()">⚙️ Accounts</button>
-            <button class="btn-icon" onclick="toggleTheme()">🌙 Dark Mode</button>
+            <button class="btn-icon" onclick="toggleTheme()">🌙 Theme</button>
         </div>
     </div>
 
@@ -133,6 +133,15 @@
     </div>
 
     <div id="actionAlerts"></div>
+
+    <div id="masterModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background:var(--bg-card); padding:25px; border-radius:8px; width:500px; max-width:90%; color:var(--text-main); max-height: 80vh; display: flex; flex-direction: column;">
+            <h2 style="margin-bottom: 5px;">📋 Master Bill List</h2>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom: 15px;">Manage the source templates for all your recurring items.</p>
+            <div id="masterListContainer" style="overflow-y: auto; flex:1; margin-bottom:15px; border: 1px solid var(--border); padding: 10px; border-radius: 6px;"></div>
+            <button class="btn-outline" onclick="document.getElementById('masterModal').style.display='none'">Close</button>
+        </div>
+    </div>
 
     <div id="accountModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
         <div style="background:var(--bg-card); padding:25px; border-radius:8px; width:400px; color:var(--text-main);">
@@ -380,7 +389,6 @@
     </div>
 
     <script>
-        // GLOBAL ERROR CATCHER
         window.onerror = function(msg, url, lineNo, columnNo, error) {
             alert("JS CRASH: " + msg + "\nLine: " + lineNo);
             return false;
@@ -404,7 +412,6 @@
         let calViewMode = 'month'; let currentCalYear = new Date().getFullYear(); let currentCalMonth = new Date().getMonth();
         let currentWeekStart = new Date(); currentWeekStart.setHours(0,0,0,0); currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); 
 
-        // THE FIX: Restored the missing data-getter function
         function getActiveEvents() { return isSandbox ? sandboxEvents : rawEvents; }
 
         window.onload = function() { loadTheme(); setupRealtimeListeners(); };
@@ -568,6 +575,72 @@
         function addCustomCategory() { const n = document.getElementById('newCatName').value.trim(); const b = parseFloat(document.getElementById('newCatBudget').value) || 0; const bkt = document.getElementById('newCatBucket').value; if(!n) return; customCategories.push({ id: 'cat_' + Date.now().toString(), name:n, budget: b, bucket: bkt }); document.getElementById('newCatName').value = ''; document.getElementById('newCatBudget').value = ''; renderCategoryList(); updateCategoriesToDB(); }
         function deleteCustomCategory(id) { let catObj = customCategories.find(c => c.id === id); if(getActiveEvents().some(ev => ev.category === catObj.name)) { alert("Category in use!"); return; } customCategories = customCategories.filter(cat => cat.id !== id); renderCategoryList(); updateCategoriesToDB(); }
         function refreshCategoryDropdown() { const select = document.getElementById('eventCategory'); let val = select.value; select.innerHTML = ''; customCategories.forEach(cat => { select.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); if(customCategories.some(cat => cat.name === val)) select.value = val; const filterSelect = document.getElementById('filterCategory'); let fVal = filterSelect.value; filterSelect.innerHTML = '<option value="all">All Categories</option>'; customCategories.forEach(cat => { filterSelect.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); if(customCategories.some(cat => cat.name === fVal)) filterSelect.value = fVal; }
+
+        // NEW: MASTER LIST FUNCTIONS
+        function openMasterModal() {
+            document.getElementById('masterModal').style.display = 'flex';
+            renderMasterList();
+        }
+
+        function renderMasterList() {
+            const list = document.getElementById('masterListContainer');
+            list.innerHTML = '';
+            let a = getActiveEvents();
+            let uniqueSeries = {};
+            let today = new Date().toISOString().split('T')[0];
+
+            a.forEach(e => {
+                let sId = e.seriesId || e.name;
+                if (!uniqueSeries[sId]) { uniqueSeries[sId] = []; }
+                uniqueSeries[sId].push(e);
+            });
+
+            if (Object.keys(uniqueSeries).length === 0) {
+                list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No recurring items found.</div>';
+                return;
+            }
+
+            for (let sId in uniqueSeries) {
+                let seriesEvents = uniqueSeries[sId];
+                seriesEvents.sort((x, y) => new Date(x.currentDate) - new Date(y.currentDate));
+                let repEvent = seriesEvents.find(e => e.currentDate >= today) || seriesEvents[seriesEvents.length - 1];
+                let typeIcon = repEvent.type === 'income' ? '🟩' : (repEvent.type === 'sinking' ? '🟦' : '🟥');
+                
+                list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+                    <div>
+                        <strong>${typeIcon} ${repEvent.name}</strong><br>
+                        <span style="font-size:11px; color:var(--text-muted);">${repEvent.category} • $${repEvent.amount.toFixed(2)}</span>
+                    </div>
+                    <div style="display:flex; gap:5px;">
+                        <button onclick="editMaster('${repEvent.id}')" style="background:#f39c12; padding:5px 10px; font-size:11px; width:auto;">Edit</button>
+                        <button onclick="deleteMasterSeries('${sId}')" style="background:#e74c3c; padding:5px 10px; font-size:11px; width:auto;">Delete All</button>
+                    </div>
+                </div>`;
+            }
+        }
+
+        function editMaster(id) {
+            document.getElementById('masterModal').style.display = 'none';
+            editEvent(id);
+            // Default to modifying the whole future series since they used the master list
+            setTimeout(() => { document.getElementById('editScope').value = 'future'; }, 100);
+        }
+
+        async function deleteMasterSeries(sId) {
+            if(confirm("Are you sure you want to completely delete EVERY future and past record of this item?")) {
+                let toDelete = getActiveEvents().filter(e => (e.seriesId === sId || (!e.seriesId && e.name === sId)));
+                if(isSandbox) {
+                    sandboxEvents = sandboxEvents.filter(e => !toDelete.includes(e));
+                    generateSchedule();
+                    renderMasterList();
+                } else {
+                    const batch = db.batch(); 
+                    toDelete.forEach(e => batch.delete(db.collection("events").doc(e.id))); 
+                    await batch.commit();
+                    setTimeout(renderMasterList, 500); // Wait for cloud sync
+                }
+            }
+        }
 
         function analyzeActionItems(events) {
             let today = new Date().toISOString().split('T')[0]; let nextWeek = new Date(); nextWeek.setDate(nextWeek.getDate() + 7); let nextWeekStr = nextWeek.toISOString().split('T')[0];
