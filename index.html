@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard V46</title>
+    <title>Household Dashboard V48</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
@@ -27,7 +27,7 @@
             --cal-empty: transparent; --cal-day: #16213e; --cal-border: #333333;
         }
 
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 20px; max-width: 1200px; margin: 0 auto; transition: 0.3s; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 20px; max-width: 1200px; margin: 0 auto; transition: 0.3s; padding-bottom: 50px;}
         h1, h2, h3 { color: var(--heading); margin-top: 0; }
         
         .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
@@ -47,10 +47,6 @@
         .btn-success { background-color: #2ecc71; margin-top: 10px; font-size: 16px; padding: 12px;}
         .btn-success:hover { background-color: #27ae60; }
         .btn-outline { background-color: transparent; color: #3498db; border: 2px solid #3498db; margin-bottom: 15px; }
-        .btn-sandbox { background-color: #e67e22; }
-        .btn-icon { width: auto; padding: 8px 12px; }
-        .btn-export { background-color: #27ae60; }
-        .btn-sweep { background-color: #9b59b6; margin-bottom: 15px; }
         
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
         th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
@@ -114,16 +110,14 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V46</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V48</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
-            <button class="btn-icon" onclick="openMasterModal()" style="background:#9b59b6; color:white;">📋 Master List</button>
-            <button class="btn-icon btn-export" onclick="exportCSV()">📥 Export CSV</button>
-            <button class="btn-icon btn-sandbox" id="sandboxBtn" onclick="toggleSandbox()">🧪 Sandbox</button>
-            <button class="btn-icon btn-settings" onclick="openCategoryModal()">⚙️ Categories</button>
-            <button class="btn-icon btn-settings" onclick="openAccountModal()">⚙️ Accounts</button>
-            <button class="btn-icon" onclick="toggleTheme()">🌙 Theme</button>
+            <button class="btn-outline" style="width: auto; padding: 8px 12px;" onclick="openMasterModal()">📋 Master List</button>
+            <button class="btn-outline" style="width: auto; padding: 8px 12px;" onclick="exportCSV()">📥 Export CSV</button>
+            <button class="btn-outline" style="width: auto; padding: 8px 12px; border-color:#e67e22; color:#e67e22;" id="sandboxBtn" onclick="toggleSandbox()">🧪 Sandbox Mode</button>
+            <button class="btn-outline" style="width: auto; padding: 8px 12px;" onclick="toggleTheme()">🌙 Theme</button>
         </div>
     </div>
 
@@ -201,7 +195,11 @@
                 <label>Main Starting Balance</label>
                 <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()" style="max-width: 200px; font-size: 18px; font-weight: bold;">
             </div>
-            <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="archivePaid()">📦 Archive Paid Bills</button>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="archivePaid()">📦 Archive Paid Bills</button>
+                <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="openAccountModal()">⚙️ Accounts</button>
+                <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="openCategoryModal()">⚙️ Categories</button>
+            </div>
         </div>
         
         <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column; justify-content: center;">
@@ -232,19 +230,36 @@
                         <label>Type</label>
                         <select id="eventType" onchange="toggleGoalInput()">
                             <option value="income">Income (+)</option>
-                            <option value="expense">Expense (-)</option>
+                            <option value="expense" selected>Expense (-)</option>
                             <option value="sinking">Sinking Fund (Goal)</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Category</label>
-                        <select id="eventCategory">
-                            </select>
+                        <label>Amount ($)</label>
+                        <input type="number" id="eventAmount" inputmode="decimal">
                     </div>
                 </div>
+                
                 <div class="form-row" id="goalTargetContainer" style="display: none;">
                     <div class="form-group"><label>Total Goal Target ($)</label><input type="number" id="eventGoalTarget" value="0"></div>
                 </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="eventCategory" onchange="autoSelectBucket()">
+                            </select>
+                    </div>
+                    <div class="form-group">
+                        <label>50/30/20 Bucket</label>
+                        <select id="eventBucket">
+                            <option value="needs">Needs (50%)</option>
+                            <option value="wants" selected>Wants (30%)</option>
+                            <option value="savings">Savings (20%)</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group"><label>Account / Owner</label><select id="eventAccount"></select></div>
                     <div class="form-group">
@@ -253,7 +268,6 @@
                     </div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label>Amount ($)</label><input type="number" id="eventAmount" inputmode="decimal"></div>
                     <div class="form-group"><label>Date</label><input type="date" id="eventDate"></div>
                     <div class="form-group" id="frequencyGroup">
                         <label>Frequency</label>
@@ -444,6 +458,15 @@
             });
         }
 
+        // V48 NEW: Auto-Select Bucket Logic based on Category choice
+        function autoSelectBucket() {
+            let catName = document.getElementById('eventCategory').value;
+            let catObj = customCategories.find(c => c.name === catName);
+            if(catObj && catObj.bucket) {
+                document.getElementById('eventBucket').value = catObj.bucket;
+            }
+        }
+
         function addDays(ds, d) { let nd = new Date(ds + 'T00:00:00'); nd.setDate(nd.getDate() + d); return nd.toISOString().split('T')[0]; }
         function addMonths(dateStr, months) {
             let d = new Date(dateStr + 'T00:00:00'); let dNum = d.getDate(); d.setMonth(d.getMonth() + months);
@@ -451,12 +474,12 @@
             return d.toISOString().split('T')[0];
         }
 
-        async function addRecurringEvents(name, type, cat, acc, flex, amt, start, freq, goal, proj, end) {
+        async function addRecurringEvents(name, type, cat, acc, flex, amt, start, freq, goal, proj, end, bkt) {
             let cur = start; let it = 0; const batch = db.batch(); let seriesId = Date.now().toString() + "_series"; 
             while(it < 105) {
                 if (end && cur > end) break;
                 let uniqueId = Date.now().toString() + "_" + it + "_" + Math.random().toString(36).substr(2,5);
-                let ev = { id: uniqueId, name, type, category: cat, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: cur, currentDate: cur, shifted: false, isPaid: false, goalTarget: goal, projectTag: proj, seriesId: seriesId, endDate: end || "" };
+                let ev = { id: uniqueId, name, type, category: cat, bucket: bkt, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: cur, currentDate: cur, shifted: false, isPaid: false, goalTarget: goal, projectTag: proj, seriesId: seriesId, endDate: end || "" };
                 
                 if(isSandbox) { sandboxEvents.push(ev); } else { let docRef = db.collection("events").doc(uniqueId); batch.set(docRef, ev); }
                 if(freq === 'once') break;
@@ -470,6 +493,8 @@
         async function processInput() {
             try {
                 const name = document.getElementById('eventName').value; const type = document.getElementById('eventType').value; const cat = document.getElementById('eventCategory').value; const acc = document.getElementById('eventAccount').value; const flex = document.getElementById('eventFlexibility').value; const amt = parseFloat(document.getElementById('eventAmount').value); const date = document.getElementById('eventDate').value; const freq = document.getElementById('eventFrequency').value; const goal = parseFloat(document.getElementById('eventGoalTarget').value) || 0; const proj = document.getElementById('eventProject').value.trim(); const end = document.getElementById('eventEndDate').value;
+                const bkt = document.getElementById('eventBucket').value; // V48 Pull bucket value
+                
                 if(!name || isNaN(amt) || !date) { alert("Fill all required fields! (Name, Amount, Date)"); return; }
                 if(end && end < date) { alert("Error: The End Date cannot occur before the Start Date."); return; }
                 
@@ -478,20 +503,20 @@
                     if (scope === 'single') {
                         deleteEventFromDb(currentlyEditingEvent.id);
                         let newId = Date.now().toString() + "_single_" + Math.random().toString(36).substr(2,5);
-                        let newEv = { id: newId, name, type, category: cat, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: date, currentDate: date, shifted: false, isPaid: currentlyEditingEvent.isPaid, goalTarget: goal, projectTag: proj, seriesId: sId, endDate: end || "" };
+                        let newEv = { id: newId, name, type, category: cat, bucket: bkt, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: date, currentDate: date, shifted: false, isPaid: currentlyEditingEvent.isPaid, goalTarget: goal, projectTag: proj, seriesId: sId, endDate: end || "" };
                         if(isSandbox) { sandboxEvents.push(newEv); generateSchedule(); } else { db.collection("events").doc(newId).set(newEv); }
                     } else {
                         let toDelete = getActiveEvents().filter(e => (e.seriesId === sId || (!e.seriesId && e.name === sId)) && e.originalDate >= targetDate);
                         if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => !toDelete.includes(e)); } else {
                             const batch = db.batch(); toDelete.forEach(e => batch.delete(db.collection("events").doc(e.id))); await batch.commit();
                         }
-                        await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end);
+                        await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end, bkt);
                     }
                     cancelEdit(); return;
                 }
                 document.getElementById('eventName').value=''; document.getElementById('eventAmount').value=''; document.getElementById('eventProject').value=''; document.getElementById('eventFrequency').value='once';
                 document.getElementById('eventGoalTarget').value='0'; document.getElementById('eventEndDate').value=''; toggleGoalInput();
-                await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end);
+                await addRecurringEvents(name, type, cat, acc, flex, amt, date, freq, goal, proj, end, bkt);
             } catch (err) { alert("CRASH DURING SAVE: " + err.message); }
         }
 
@@ -500,7 +525,13 @@
             if (ev) {
                 currentlyEditingEvent = ev;
                 document.getElementById('saveBtn').innerText = "Update Transaction"; document.getElementById('saveBtn').style.backgroundColor = "#f39c12"; document.getElementById('cancelEditBtn').style.display = "block"; document.getElementById('editScopeContainer').style.display = "flex"; document.getElementById('frequencyGroup').style.display = "none"; 
-                document.getElementById('eventName').value = ev.name; document.getElementById('eventType').value = ev.type; toggleGoalInput(); document.getElementById('eventCategory').value = ev.category; document.getElementById('eventAccount').value = ev.account; document.getElementById('eventFlexibility').value = ev.flexibility; document.getElementById('eventAmount').value = ev.amount; document.getElementById('eventDate').value = ev.originalDate; if(ev.type === 'sinking') document.getElementById('eventGoalTarget').value = ev.goalTarget; document.getElementById('eventEndDate').value = ev.endDate || ''; window.scrollTo({ top: 0, behavior: 'smooth' });
+                document.getElementById('eventName').value = ev.name; document.getElementById('eventType').value = ev.type; toggleGoalInput(); 
+                document.getElementById('eventCategory').value = ev.category; 
+                
+                // V48 Backwards compatibility reading for bucket dropdown
+                document.getElementById('eventBucket').value = ev.bucket || (customCategories.find(c=>c.name===ev.category)?.bucket || 'wants');
+                
+                document.getElementById('eventAccount').value = ev.account; document.getElementById('eventFlexibility').value = ev.flexibility; document.getElementById('eventAmount').value = ev.amount; document.getElementById('eventDate').value = ev.originalDate; if(ev.type === 'sinking') document.getElementById('eventGoalTarget').value = ev.goalTarget; document.getElementById('eventEndDate').value = ev.endDate || ''; window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         }
 
@@ -605,6 +636,8 @@
                 customCategories.forEach(cat => { filterSelect.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); 
                 if(customCategories.some(cat => cat.name === fVal)) filterSelect.value = fVal; 
             }
+            // Fire the auto-select on initial load
+            autoSelectBucket();
         }
 
         function openMasterModal() { document.getElementById('masterModal').style.display = 'flex'; renderMasterList(); }
@@ -615,7 +648,6 @@
             let today = new Date().toISOString().split('T')[0];
             
             a.forEach(e => { let sId = e.seriesId || e.name; if (!uniqueSeries[sId]) { uniqueSeries[sId] = []; } uniqueSeries[sId].push(e); });
-            
             if (Object.keys(uniqueSeries).length === 0) { list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No recurring items found.</div>'; return; }
             
             let masterItems = [];
@@ -632,7 +664,6 @@
                 let repEvent = item.event;
                 let sId = item.sId;
                 let typeIcon = repEvent.type === 'income' ? '🟩' : (repEvent.type === 'sinking' ? '🟦' : '🟥');
-                
                 let dParts = repEvent.currentDate.split('-');
                 let dateLabel = `${mNames[parseInt(dParts[1])-1]} ${dParts[2]}`;
 
@@ -686,6 +717,7 @@
             document.getElementById('summaryBurnBar').style.background = pct > 90 ? '#e74c3c' : (pct > 75 ? '#f39c12' : '#2ecc71');
         }
 
+        // V48 UPDATE: Analyzer now uses the transaction-level bucket instead of the global category rule
         function analyze503020(events) {
             let currMonth = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}`;
             document.getElementById('analyzerMonthLabel').innerText = `(For ${mNames[currentCalMonth]} ${currentCalYear})`;
@@ -696,10 +728,15 @@
                 if(e.currentDate.startsWith(currMonth)) {
                     if(e.type === 'income') { income += e.amount; }
                     else {
-                        let cat = customCategories.find(c => c.name === e.category);
-                        let bucket = cat && cat.bucket ? cat.bucket : 'wants'; 
-                        if(e.type === 'sinking' || bucket === 'savings') savings += e.amount;
-                        else if(bucket === 'needs') needs += e.amount;
+                        // Look for a custom bucket on the event, fallback to category rule for older entries
+                        let bkt = e.bucket;
+                        if (!bkt) {
+                            let cat = customCategories.find(c => c.name === e.category);
+                            bkt = cat && cat.bucket ? cat.bucket : 'wants'; 
+                        }
+                        
+                        if(e.type === 'sinking' || bkt === 'savings') savings += e.amount;
+                        else if(bkt === 'needs') needs += e.amount;
                         else wants += e.amount;
                     }
                 }
@@ -746,7 +783,7 @@
             while(!opt && safe < 100) {
                 opt = true; processingArr.sort((x, y) => { let d = new Date(x.currentDate) - new Date(y.currentDate); return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d; });
                 
-                let b = bal; // STANDARD CHECKBOOK START
+                let b = bal; 
                 for(let i=0; i<processingArr.length; i++) {
                     let e = processingArr[i]; b += (e.type==='income'?e.amount:-e.amount);
                     if(b < 0 && e.type==='expense' && e.flexibility==='flexible' && !e.isPaid) {
@@ -808,8 +845,23 @@
         function toggleGoalInput() { document.getElementById('goalTargetContainer').style.display = document.getElementById('eventType').value === 'sinking' ? 'flex' : 'none'; }
         function toggleTheme() { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); localStorage.setItem('budgetAppTheme', document.body.getAttribute('data-theme')); if(rawEvents.length > 0) generateSchedule(); }
         function loadTheme() { if(localStorage.getItem('budgetAppTheme') === 'dark') document.body.setAttribute('data-theme', 'dark'); }
-        function toggleSandbox() { isSandbox = !isSandbox; document.getElementById('sandboxBanner').style.display = isSandbox ? 'block' : 'none'; document.getElementById('sandboxBtn').innerText = isSandbox ? '🛑 Exit Sandbox' : '🧪 Sandbox Mode'; document.getElementById('sandboxBtn').style.backgroundColor = isSandbox ? '#c0392b' : '#e67e22'; if(isSandbox) { sandboxEvents = JSON.parse(JSON.stringify(rawEvents)); } generateSchedule(); }
-        function toggleCalendarView() { calViewMode = calViewMode === 'month' ? 'week' : 'month'; document.getElementById('toggleViewBtn').innerText = calViewMode === 'month' ? 'Switch to Weekly' : 'Switch to Monthly'; generateSchedule(); }
+        
+        function toggleSandbox() { 
+            isSandbox = !isSandbox; 
+            document.getElementById('sandboxBanner').style.display = isSandbox ? 'block' : 'none'; 
+            document.getElementById('sandboxBtn').innerText = isSandbox ? '🛑 Exit Sandbox' : '🧪 Sandbox Mode'; 
+            document.getElementById('sandboxBtn').style.borderColor = isSandbox ? '#e74c3c' : '#e67e22'; 
+            document.getElementById('sandboxBtn').style.color = isSandbox ? '#e74c3c' : '#e67e22'; 
+            if(isSandbox) sandboxEvents = JSON.parse(JSON.stringify(rawEvents)); 
+            generateSchedule(); 
+        }
+
+        function toggleCalendarView() { 
+            calViewMode = calViewMode === 'month' ? 'week' : 'month'; 
+            document.getElementById('toggleViewBtn').innerText = calViewMode === 'month' ? 'Switch to Weekly' : 'Switch to Monthly'; 
+            generateSchedule(); 
+        }
+
         function calculateSubBurnRate(events) { let subs = {}; events.forEach(e => { if(e.category === 'Subscriptions') { if(!subs[e.name]) subs[e.name] = e.amount; } }); let total = Object.values(subs).reduce((a,b)=>a+b, 0); document.getElementById('subBurnRate').innerText = `$${total.toFixed(2)}`; }
         
         function exportCSV() { 
