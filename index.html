@@ -115,7 +115,7 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V27</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V28</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
@@ -404,6 +404,9 @@
         let calViewMode = 'month'; let currentCalYear = new Date().getFullYear(); let currentCalMonth = new Date().getMonth();
         let currentWeekStart = new Date(); currentWeekStart.setHours(0,0,0,0); currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); 
 
+        // THE FIX: Restored the missing data-getter function
+        function getActiveEvents() { return isSandbox ? sandboxEvents : rawEvents; }
+
         window.onload = function() { loadTheme(); setupRealtimeListeners(); };
 
         function setupRealtimeListeners() {
@@ -679,8 +682,6 @@
                 if(e.isPaid) tr.classList.add('is-paid'); else if(e.runningBalance<0) tr.classList.add('danger'); else if(e.shifted) tr.classList.add('shifted');
                 let fb=e.flexibility==='flexible'?'<span class="badge badge-flex">Flex</span>':''; let sb=e.type==='sinking'?'<span class="badge badge-sinking">Goal</span>':''; let pb=e.projectTag?`<span class="badge badge-project">📁 ${e.projectTag}</span>`:'';
                 let accData=customAccounts.find(a=>a.id===e.account); let ab=accData?`<span class="badge" style="background:${accData.color}; color:white;">${accData.name}</span>`:'';
-                
-                // NO RECEIPT UPLOADS
                 tr.innerHTML=`<td style="text-align:center;"><input type="checkbox" ${e.isPaid?'checked':''} onchange="togglePaid('${e.id}')"></td><td style="white-space:nowrap;">${e.currentDate}</td><td><strong>${e.name}</strong><br>${ab}${fb}${sb}${pb}</td><td class="${e.type==='income'?'income-text':''}">${e.type==='income'?'+':'-'}$${e.amount.toFixed(2)}</td><td><strong>$${(e.runningBalance || 0).toFixed(2)}</strong></td><td class="action-btns"><button class="btn-edit" onclick="editEvent('${e.id}')" title="Edit">✎</button><button class="btn-delete" onclick="deleteEventFromDb('${e.id}')" title="Delete">X</button></td>`;
                 tb.appendChild(tr);
             });
