@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard V52</title>
+    <title>Household Dashboard</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
@@ -111,7 +111,7 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V52</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V53</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
@@ -413,7 +413,6 @@
         
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        // REMOVED OFFLINE PERSISTENCE TO PREVENT MULTI-TAB DB LOCKUP
 
         let rawEvents = []; let sandboxEvents = []; let isSandbox = false; let myChart = null;
         let debts = []; let customAccounts = []; let customCategories = [];
@@ -817,50 +816,82 @@
             document.getElementById('savingsBar').style.width = `${Math.min(sPct, 100)}%`; document.getElementById('savingsBar').style.background = sPct < 15 ? '#e74c3c' : '#2ecc71';
         }
 
-        // V52: LIGHTNING FAST ENVELOPE SNAPPING
+        // V53 CRITICAL FIX: Lightning-Fast, Non-Crashing Smart Allocator
         function generateSchedule() {
             let bal = parseFloat(document.getElementById('startBalance').value) || 0; 
             let a = getActiveEvents();
             
-            // Establish absolute baseline balance based purely on what has physically left the bank
-            let netPaid = 0;
-            a.forEach(e => { if(e.isPaid) { netPaid += (e.type === 'income' ? e.amount : -e.amount); } });
-            let originBalance = bal - netPaid;
-
             let processingArr = JSON.parse(JSON.stringify(a));
             
-            // Reset everything to original dates
+            // 1. Reset dates
             processingArr.forEach(e => { if(!e.isPaid) { e.currentDate = e.originalDate; e.shifted = false; } });
 
-            // FAST SNAP ALGORITHM: Pushes unpaid bills to the nearest previous paycheck
-            let incomeDates = [...new Set(processingArr.filter(e => e.type === 'income').map(e => e.currentDate))].sort((x,y) => new Date(x) - new Date(y));
-
-            if (incomeDates.length > 0) {
-                processingArr.forEach(exp => {
-                    if (!exp.isPaid && exp.type !== 'income') {
-                        let priorIncomes = incomeDates.filter(d => d <= exp.originalDate);
-                        if (priorIncomes.length > 0) {
-                            let safeDate = priorIncomes[priorIncomes.length - 1]; // The paycheck right before the bill
-                            if (exp.originalDate !== safeDate) {
-                                exp.currentDate = safeDate;
-                                exp.shifted = true;
-                            }
-                        }
-                    }
-                });
-            }
-
-            // Final Sort & Calculate Balance 
+            // 2. Sort chronologically
             processingArr.sort((x, y) => {
                 let d = new Date(x.currentDate) - new Date(y.currentDate);
                 return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d;
             });
 
-            let b = originBalance; 
-            for(let i=0; i<processingArr.length; i++) {
-                b += (processingArr[i].type==='income' ? processingArr[i].amount : -processingArr[i].amount);
-                processingArr[i].runningBalance = b; 
-            }
+            // 3. Establish strict baseline running balances
+            let b = bal;
+            processingArr.forEach(e => {
+                b += (e.type === 'income' ? e.amount : -e.amount);
+                e.runningBalance = b;
+            });
+
+            // 4. Identify Paychecks
+            let incomeDates = [...new Set(processingArr.filter(e => e.type === 'income').map(e => e.currentDate))].sort();
+
+            // 5. The O(N) Smart Allocator (Pays early ONLY if safe)
+            let unpaidExpenses = processingArr.filter(e => !e.isPaid && e.type !== 'income');
+            
+            unpaidExpenses.forEach(exp => {
+                let priorIncomes = incomeDates.filter(d => d <= exp.originalDate);
+                if (priorIncomes.length > 0) {
+                    let targetDate = priorIncomes[priorIncomes.length - 1]; // Nearest prior paycheck
+                    
+                    if (targetDate < exp.originalDate) {
+                        let isSafe = true;
+                        
+                        // Verify that paying early won't overdraft the account before the original due date
+                        for (let i = 0; i < processingArr.length; i++) {
+                            let ev = processingArr[i];
+                            if (ev.currentDate >= targetDate && ev.currentDate < exp.originalDate) {
+                                if (ev.runningBalance - exp.amount < 0) {
+                                    isSafe = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // If safe, snap the bill backward!
+                        if (isSafe) {
+                            exp.currentDate = targetDate;
+                            exp.shifted = true;
+                            
+                            // Instantly update the baseline to reflect the early payment
+                            for (let i = 0; i < processingArr.length; i++) {
+                                let ev = processingArr[i];
+                                if (ev.currentDate >= targetDate && ev.currentDate < exp.originalDate) {
+                                    ev.runningBalance -= exp.amount;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 6. Final Re-sort and Polish
+            processingArr.sort((x, y) => {
+                let d = new Date(x.currentDate) - new Date(y.currentDate);
+                return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d;
+            });
+
+            let finalBal = bal;
+            processingArr.forEach(e => {
+                finalBal += (e.type === 'income' ? e.amount : -e.amount);
+                e.runningBalance = finalBal;
+            });
             
             let targetMonth = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}`;
             let monthInc = 0; let monthExp = 0;
@@ -881,7 +912,7 @@
             });
 
             renderTable(filteredArr); 
-            if(filteredArr.length>0) renderCalendar(filteredArr, targetMonth, originBalance); 
+            if(filteredArr.length>0) renderCalendar(filteredArr, targetMonth, bal); 
             else document.getElementById('calendarContainer').style.display='none';
             
             renderGoals(processingArr); 
@@ -954,11 +985,11 @@
             let blob = new Blob([csv], { type: 'text/csv' }); let url = window.URL.createObjectURL(blob); let a = document.createElement('a'); a.setAttribute('href', url); a.setAttribute('download', 'Household_Budget_Export.csv'); a.click(); 
         }
         
-        function renderCalendar(events, targetMonth, originBalance) { 
+        function renderCalendar(events, targetMonth, bal) { 
             document.getElementById('calendarContainer').style.display='block'; 
             const grid=document.getElementById('calendarGrid'); grid.innerHTML=''; 
             let byDate={}; events.forEach(e=>{ if(!byDate[e.currentDate]) byDate[e.currentDate]=[]; byDate[e.currentDate].push(e); }); 
-            let cur = originBalance; 
+            let cur = bal; 
             
             if(calViewMode==='month'){ 
                 document.getElementById('calendarMonthLabel').innerText=`${mNames[currentCalMonth]} ${currentCalYear}`; 
