@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard V50</title>
+    <title>Household Dashboard</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
@@ -111,7 +111,7 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V50</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V51</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
@@ -413,7 +413,7 @@
         
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        db.enablePersistence().catch((err) => { console.warn("Offline persistence issue: ", err); });
+        // V51 CRITICAL FIX: Removed db.enablePersistence() entirely to prevent multi-tab database freezing.
 
         let rawEvents = []; let sandboxEvents = []; let isSandbox = false; let myChart = null;
         let debts = []; let customAccounts = []; let customCategories = [];
@@ -818,35 +818,51 @@
             document.getElementById('savingsBar').style.width = `${Math.min(sPct, 100)}%`; document.getElementById('savingsBar').style.background = sPct < 15 ? '#e74c3c' : '#2ecc71';
         }
 
+        // V51 NEW: The True Smart Allocator
+        // Pushes expenses BACKWARD to the most recent safe paycheck.
+        // NEVER pushes an expense FORWARD late into the future.
         function generateSchedule() {
             let bal = parseFloat(document.getElementById('startBalance').value) || 0; 
             let a = getActiveEvents();
             
+            // 1. Establish absolute baseline balance based purely on what has physically left the bank
             let netPaid = 0;
             a.forEach(e => { if(e.isPaid) { netPaid += (e.type === 'income' ? e.amount : -e.amount); } });
             let originBalance = bal - netPaid;
 
             let processingArr = JSON.parse(JSON.stringify(a));
             
+            // Reset everything to original dates
             processingArr.forEach(e => { if(!e.isPaid) { e.currentDate = e.originalDate; e.shifted = false; } });
 
+            // Generate an array of all upcoming income dates
             let incomeDates = [...new Set(processingArr.filter(e => e.type === 'income').map(e => e.currentDate))].sort((x,y) => new Date(x) - new Date(y));
 
+            // 2. The Smart Allocation Loop
             let unpaidExpenses = processingArr.filter(e => !e.isPaid && e.type !== 'income');
+            
+            // Go through unpaid bills chronologically
             unpaidExpenses.sort((x, y) => new Date(x.originalDate) - new Date(y.originalDate));
 
             unpaidExpenses.forEach(exp => {
+                // Find all paychecks that happen ON OR BEFORE this bill is due
                 let possibleDates = incomeDates.filter(d => d <= exp.originalDate);
+                
+                // Reverse it to test the most recent paycheck first (the one closest to the bill)
                 possibleDates.reverse(); 
+                
+                // If every single early attempt fails, the ultimate fallback is just paying it exactly on time
                 possibleDates.push(exp.originalDate); 
 
                 let safeDate = exp.originalDate;
                 let safeShifted = false;
 
+                // Test each date
                 for(let i=0; i<possibleDates.length; i++) {
                     let testDate = possibleDates[i];
                     exp.currentDate = testDate;
 
+                    // Build a temporary timeline to see if assigning this bill here ruins the bank account
                     let tempArr = [...processingArr];
                     tempArr.sort((x, y) => {
                         let d = new Date(x.currentDate) - new Date(y.currentDate);
@@ -860,6 +876,7 @@
                         if(b < 0) { wentNegative = true; break; }
                     }
 
+                    // If it survived the timeline simulation without dipping below $0, lock it in!
                     if(!wentNegative) {
                         safeDate = testDate;
                         safeShifted = (testDate !== exp.originalDate);
@@ -867,10 +884,12 @@
                     }
                 }
 
+                // Apply the safest found date
                 exp.currentDate = safeDate;
                 exp.shifted = safeShifted;
             });
 
+            // 3. Final Sort & Formatting
             processingArr.sort((x, y) => {
                 let d = new Date(x.currentDate) - new Date(y.currentDate);
                 return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d;
