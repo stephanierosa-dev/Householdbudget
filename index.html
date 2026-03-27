@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard</title>
+    <title>Household Dashboard V50</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
@@ -100,6 +100,7 @@
         .cal-shifted { background-color: rgba(243, 156, 18, 0.2); color: #7e5109; border-left: 3px solid #f39c12; border-style: dashed; }
         .cal-is-paid { opacity: 0.4; text-decoration: line-through; border-left: 3px solid #7f8c8d; background-color: rgba(127, 140, 141, 0.1); color: var(--text-main); }
         .cal-eod-balance { margin-top: auto; font-size: 10px; font-weight: bold; text-align: right; color: var(--text-muted); }
+        .cal-eod-negative { color: #e74c3c !important; }
         
         [data-theme="dark"] .cal-income { color: #2ecc71; }
         [data-theme="dark"] .cal-expense { color: #e74c3c; }
@@ -110,7 +111,7 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V49</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V50</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
@@ -170,9 +171,9 @@
                     <label>Limit ($)</label>
                     <input type="number" id="newCatBudget" placeholder="Opt." inputmode="decimal">
                 </div>
-                <button onclick="addCustomCategory()" style="width: auto; margin-bottom:2px;">Add</button>
+                <button id="saveCatBtn" onclick="addCustomCategory()" style="width: auto; margin-bottom:2px;">Add</button>
             </div>
-            <button class="btn-outline" onclick="document.getElementById('categoryModal').style.display='none'" style="margin-top: 20px;">Done</button>
+            <button class="btn-outline" onclick="closeCategoryModal()" style="margin-top: 20px;">Done</button>
         </div>
     </div>
 
@@ -396,6 +397,7 @@
     </div>
 
     <script>
+        // GLOBAL ERROR CATCHER
         window.onerror = function(msg, url, lineNo, columnNo, error) {
             alert("JS CRASH: " + msg + "\nLine: " + lineNo);
             return false;
@@ -415,7 +417,7 @@
 
         let rawEvents = []; let sandboxEvents = []; let isSandbox = false; let myChart = null;
         let debts = []; let customAccounts = []; let customCategories = [];
-        let currentlyEditingEvent = null; 
+        let currentlyEditingEvent = null; let currentlyEditingCategory = null; 
         let calViewMode = 'month'; let currentCalYear = new Date().getFullYear(); let currentCalMonth = new Date().getMonth();
         let currentWeekStart = new Date(); currentWeekStart.setHours(0,0,0,0); currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); 
         const mNames=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -537,8 +539,6 @@
         function deleteEventFromDb(id) { if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => e.id !== id); generateSchedule(); } else { db.collection("events").doc(id).delete(); } }
         function updateBalanceToDB() { if(!isSandbox) db.collection("settings").doc("balance").set({ amount: parseFloat(document.getElementById('startBalance').value) || 0 }); }
         function updateAccountsToDB() { if(!isSandbox) db.collection("settings").doc("accounts").set({ list: customAccounts }); }
-        function updateCategoriesToDB() { if(!isSandbox) db.collection("settings").doc("categories").set({ list: customCategories }); }
-        function updateDebtsToDB() { if(!isSandbox) db.collection("settings").doc("debts").set({ list: debts }); }
 
         function togglePaid(id) {
             if(isSandbox) { let e = sandboxEvents.find(x=>x.id===id); if(e){ e.isPaid=!e.isPaid; if(e.isPaid){e.currentDate=e.originalDate; e.shifted=false;} generateSchedule();}
@@ -589,8 +589,8 @@
             } else alert("You don't have any unallocated funds available to sweep right now!");
         }
 
-        function addDebt() { const n=document.getElementById('debtName').value; const b=parseFloat(document.getElementById('debtBalance').value); const a=parseFloat(document.getElementById('debtAPR').value); const p=parseFloat(document.getElementById('debtPay').value); if(!n||isNaN(b)||isNaN(a)||isNaN(p)) return; debts.push({ id: Date.now().toString(), name:n, balance:b, apr:a, pay:p }); document.getElementById('debtName').value=''; document.getElementById('debtBalance').value=''; document.getElementById('debtAPR').value=''; document.getElementById('debtPay').value=''; updateDebtsToDB(); }
-        function deleteDebt(id) { debts = debts.filter(d => d.id !== id); updateDebtsToDB(); }
+        function addDebt() { const n=document.getElementById('debtName').value; const b=parseFloat(document.getElementById('debtBalance').value); const a=parseFloat(document.getElementById('debtAPR').value); const p=parseFloat(document.getElementById('debtPay').value); if(!n||isNaN(b)||isNaN(a)||isNaN(p)) return; debts.push({ id: Date.now().toString(), name:n, balance:b, apr:a, pay:p }); document.getElementById('debtName').value=''; document.getElementById('debtBalance').value=''; document.getElementById('debtAPR').value=''; document.getElementById('debtPay').value=''; db.collection("settings").doc("debts").set({list: debts}); }
+        function deleteDebt(id) { debts = debts.filter(d => d.id !== id); db.collection("settings").doc("debts").set({list: debts}); }
         function renderDebts() { 
             const list = document.getElementById('debtList'); list.innerHTML = ''; 
             debts.forEach(d => { 
@@ -610,16 +610,82 @@
         function refreshAccountDropdown() { const select = document.getElementById('eventAccount'); let val = select.value; select.innerHTML = ''; customAccounts.forEach(acc => { select.innerHTML += `<option value="${acc.id}">${acc.name}</option>`; }); if(customAccounts.some(acc => acc.id === val)) select.value = val; }
 
         function openCategoryModal() { document.getElementById('categoryModal').style.display = 'flex'; renderCategoryList(); }
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').style.display = 'none';
+            currentlyEditingCategory = null;
+            document.getElementById('newCatName').value = ''; 
+            document.getElementById('newCatBudget').value = '';
+            document.getElementById('saveCatBtn').innerText = 'Add';
+        }
+        
         function renderCategoryList() { 
             const list = document.getElementById('categoryListContainer'); list.innerHTML = ''; 
             customCategories.forEach(cat => { 
                 let budgText = cat.budget > 0 ? ` (Limit: $${cat.budget})` : ''; 
                 let bucketLabel = cat.bucket === 'needs' ? '🔵 Needs' : (cat.bucket === 'savings' ? '🟢 Savings' : '🟣 Wants');
-                list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border);"><span>${cat.name} <span style="font-size:10px; color:var(--text-muted);">${budgText} - ${bucketLabel}</span></span><button onclick="deleteCustomCategory('${cat.name}')" style="background:#e74c3c; padding:2px 5px; width:auto; font-size:10px; border:none; color:white; border-radius:3px;">Del</button></div>`; 
+                list.innerHTML += `<div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border); align-items:center;">
+                    <span style="font-size:12px;">${cat.name} <span style="font-size:10px; color:var(--text-muted);">${budgText} - ${bucketLabel}</span></span>
+                    <div style="display:flex; gap:5px;">
+                        <button onclick="editCategory('${cat.name}')" style="background:#f39c12; padding:2px 6px; font-size:10px; width:auto; border:none; color:white; border-radius:3px;">Edit</button>
+                        <button onclick="deleteCustomCategory('${cat.name}')" style="background:#e74c3c; padding:2px 6px; font-size:10px; width:auto; border:none; color:white; border-radius:3px;">Del</button>
+                    </div>
+                </div>`; 
             }); 
         }
-        function addCustomCategory() { const n = document.getElementById('newCatName').value.trim(); const b = parseFloat(document.getElementById('newCatBudget').value) || 0; const bkt = document.getElementById('newCatBucket').value; if(!n) return; customCategories.push({ name:n, budget: b, bucket: bkt }); document.getElementById('newCatName').value = ''; document.getElementById('newCatBudget').value = ''; renderCategoryList(); updateCategoriesToDB(); }
-        function deleteCustomCategory(name) { if(getActiveEvents().some(ev => ev.category === name)) { alert("Category in use!"); return; } customCategories = customCategories.filter(cat => cat.name !== name); renderCategoryList(); updateCategoriesToDB(); }
+
+        function editCategory(name) {
+            let cat = customCategories.find(c => c.name === name);
+            if(!cat) return;
+            currentlyEditingCategory = name;
+            document.getElementById('newCatName').value = cat.name;
+            document.getElementById('newCatBucket').value = cat.bucket || 'wants';
+            document.getElementById('newCatBudget').value = cat.budget || '';
+            document.getElementById('saveCatBtn').innerText = 'Update';
+        }
+
+        async function addCustomCategory() { 
+            const n = document.getElementById('newCatName').value.trim(); 
+            const b = parseFloat(document.getElementById('newCatBudget').value) || 0; 
+            const bkt = document.getElementById('newCatBucket').value; 
+            if(!n) return; 
+
+            if (currentlyEditingCategory) {
+                const oldName = currentlyEditingCategory;
+                
+                let catIndex = customCategories.findIndex(c => c.name === oldName);
+                if(catIndex > -1) { customCategories[catIndex] = { name: n, budget: b, bucket: bkt }; }
+                
+                if (oldName !== n && !isSandbox) {
+                    let batch = db.batch();
+                    let eventsToUpdate = rawEvents.filter(e => e.category === oldName);
+                    eventsToUpdate.forEach(e => {
+                        batch.update(db.collection("events").doc(e.id), { category: n });
+                    });
+                    if(eventsToUpdate.length > 0) { await batch.commit(); }
+                } else if (oldName !== n && isSandbox) {
+                    sandboxEvents.forEach(e => { if(e.category === oldName) e.category = n; });
+                }
+
+                currentlyEditingCategory = null;
+                document.getElementById('saveCatBtn').innerText = 'Add';
+            } else {
+                if(customCategories.some(c => c.name === n)) { alert("Category already exists!"); return; }
+                customCategories.push({ name:n, budget: b, bucket: bkt }); 
+            }
+
+            if(!isSandbox) db.collection("settings").doc("categories").set({list: customCategories});
+            document.getElementById('newCatName').value = ''; 
+            document.getElementById('newCatBudget').value = ''; 
+            renderCategoryList(); 
+        }
+
+        function deleteCustomCategory(name) { 
+            if(getActiveEvents().some(ev => ev.category === name)) { alert("Category is currently used by a transaction. Reassign or delete the transaction first."); return; } 
+            customCategories = customCategories.filter(cat => cat.name !== name); 
+            if(!isSandbox) db.collection("settings").doc("categories").set({list: customCategories});
+            renderCategoryList(); 
+        }
+
         function refreshCategoryDropdown() { 
             const select = document.getElementById('eventCategory'); let val = select.value; select.innerHTML = ''; 
             customCategories.forEach(cat => { select.innerHTML += `<option value="${cat.name}">${cat.name}</option>`; }); 
@@ -752,40 +818,26 @@
             document.getElementById('savingsBar').style.width = `${Math.min(sPct, 100)}%`; document.getElementById('savingsBar').style.background = sPct < 15 ? '#e74c3c' : '#2ecc71';
         }
 
-        // V49 BUG FIX: The completely rewritten Smart Allocator. 
-        // It pays bills early (snapping to paychecks) ONLY if doing so is mathematically safe.
-        // It NEVER shifts a bill late. It leaves honest deficits on the original due date.
         function generateSchedule() {
             let bal = parseFloat(document.getElementById('startBalance').value) || 0; 
             let a = getActiveEvents();
             
-            // 1. True Origin Math
             let netPaid = 0;
             a.forEach(e => { if(e.isPaid) { netPaid += (e.type === 'income' ? e.amount : -e.amount); } });
             let originBalance = bal - netPaid;
 
             let processingArr = JSON.parse(JSON.stringify(a));
             
-            // Reset to default states
             processingArr.forEach(e => { if(!e.isPaid) { e.currentDate = e.originalDate; e.shifted = false; } });
 
-            // Generate an array of strictly income dates
             let incomeDates = [...new Set(processingArr.filter(e => e.type === 'income').map(e => e.currentDate))].sort((x,y) => new Date(x) - new Date(y));
 
-            // 2. The Smart Allocation Loop
             let unpaidExpenses = processingArr.filter(e => !e.isPaid && e.type !== 'income');
-            
-            // Process the earliest bills first
             unpaidExpenses.sort((x, y) => new Date(x.originalDate) - new Date(y.originalDate));
 
             unpaidExpenses.forEach(exp => {
-                // Find all paychecks that happen ON OR BEFORE this bill is due
                 let possibleDates = incomeDates.filter(d => d <= exp.originalDate);
-                
-                // We want to try the most recent paycheck first
                 possibleDates.reverse(); 
-                
-                // If paying it early fails, the ultimate fallback is just paying it on time
                 possibleDates.push(exp.originalDate); 
 
                 let safeDate = exp.originalDate;
@@ -795,7 +847,6 @@
                     let testDate = possibleDates[i];
                     exp.currentDate = testDate;
 
-                    // Build a temporary timeline to test if this date ruins the bank account
                     let tempArr = [...processingArr];
                     tempArr.sort((x, y) => {
                         let d = new Date(x.currentDate) - new Date(y.currentDate);
@@ -809,7 +860,6 @@
                         if(b < 0) { wentNegative = true; break; }
                     }
 
-                    // If it survived the timeline simulation without going negative, lock it in!
                     if(!wentNegative) {
                         safeDate = testDate;
                         safeShifted = (testDate !== exp.originalDate);
@@ -817,12 +867,10 @@
                     }
                 }
 
-                // Apply the safest date found
                 exp.currentDate = safeDate;
                 exp.shifted = safeShifted;
             });
 
-            // 3. Final Render Formatting
             processingArr.sort((x, y) => {
                 let d = new Date(x.currentDate) - new Date(y.currentDate);
                 return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d;
@@ -852,8 +900,16 @@
                 return matchesSearch && matchesStatus && matchesCat;
             });
 
-            renderTable(filteredArr); if(filteredArr.length>0) renderCalendar(filteredArr, targetMonth, originBalance); else document.getElementById('calendarContainer').style.display='none';
-            renderGoals(processingArr); renderBudgets(processingArr, targetMonth); updateAnalytics(processingArr); calculateSubBurnRate(processingArr); analyzeInsightsAndStreaks(processingArr); analyzeActionItems(processingArr);
+            renderTable(filteredArr); 
+            if(filteredArr.length>0) renderCalendar(filteredArr, targetMonth, originBalance); 
+            else document.getElementById('calendarContainer').style.display='none';
+            
+            renderGoals(processingArr); 
+            renderBudgets(processingArr, targetMonth); 
+            updateAnalytics(processingArr); 
+            calculateSubBurnRate(processingArr); 
+            analyzeInsightsAndStreaks(processingArr); 
+            analyzeActionItems(processingArr);
             analyze503020(processingArr); 
         }
 
@@ -883,7 +939,15 @@
         }
 
         function toggleGoalInput() { document.getElementById('goalTargetContainer').style.display = document.getElementById('eventType').value === 'sinking' ? 'flex' : 'none'; }
-        function toggleTheme() { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); localStorage.setItem('budgetAppTheme', document.body.getAttribute('data-theme')); if(rawEvents.length > 0) generateSchedule(); }
+        
+        function toggleTheme() { 
+            let current = document.body.getAttribute('data-theme');
+            let nextTheme = current === 'dark' ? 'light' : 'dark';
+            document.body.setAttribute('data-theme', nextTheme); 
+            localStorage.setItem('budgetAppTheme', nextTheme); 
+            if(myChart) updateAnalytics(getActiveEvents());
+        }
+        
         function loadTheme() { if(localStorage.getItem('budgetAppTheme') === 'dark') document.body.setAttribute('data-theme', 'dark'); }
         
         function toggleSandbox() { 
