@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard</title>
+    <title>Household Dashboard V54</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
@@ -111,7 +111,7 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V53</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V54</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
@@ -177,26 +177,19 @@
         </div>
     </div>
 
-    <div class="streak-counter" id="streakCounter" style="display:none;">
-        <span class="streak-fire">🔥</span>
-        <div>
-            <div style="font-size: 18px;"><strong><span id="streakDays">0</span> Day No-Spend Streak!</strong></div>
-            <div style="font-size: 12px; font-weight: normal;">You haven't made any 'Flexible' purchases in a while. Keep it up!</div>
-        </div>
-    </div>
-
-    <div class="insights-box" id="insightsBox" style="display:none;">
-        <h3>💡 Smart Financial Insights</h3>
-        <ul id="insightsList" style="margin:0; padding-left:20px; font-size:13px; line-height:1.5;"></ul>
-    </div>
-
     <div class="grid-layout" style="margin-bottom: 20px;">
         <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column; justify-content: space-between;">
-            <div class="form-group" style="margin-bottom: 10px;">
-                <label>Main Starting Balance</label>
-                <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()" style="max-width: 200px; font-size: 18px; font-weight: bold;">
+            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 120px;">
+                    <label>Starting Balance</label>
+                    <input type="number" id="startBalance" value="0" onchange="updateBalanceToDB()" style="font-size: 24px; font-weight: 900; border: none; background: transparent; padding: 0; color:var(--heading);">
+                </div>
+                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 100px;">
+                    <label style="color:#f39c12;">Safety Buffer ($)</label>
+                    <input type="number" id="minBuffer" value="300" onchange="updateBalanceToDB()" style="font-size: 24px; font-weight: 900; border: none; background: transparent; padding: 0; color:#f39c12;" title="The optimizer will never schedule a bill early if it drops your balance below this number.">
+                </div>
             </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;">
                 <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="archivePaid()">📦 Archive Paid Bills</button>
                 <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="openAccountModal()">⚙️ Accounts</button>
                 <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="openCategoryModal()">⚙️ Categories</button>
@@ -451,8 +444,12 @@
                 if(doc.exists && doc.data().list) debts = doc.data().list; else debts = []; renderDebts();
             });
 
+            // V54 UPDATE: Load minBuffer alongside startBalance
             db.collection("settings").doc("balance").onSnapshot((doc) => {
-                if(doc.exists) document.getElementById('startBalance').value = doc.data().amount;
+                if(doc.exists) {
+                    document.getElementById('startBalance').value = doc.data().amount || 0;
+                    document.getElementById('minBuffer').value = doc.data().buffer !== undefined ? doc.data().buffer : 300;
+                }
                 if(!isSandbox) generateSchedule();
             });
         }
@@ -535,8 +532,18 @@
         }
 
         function deleteEventFromDb(id) { if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => e.id !== id); generateSchedule(); } else { db.collection("events").doc(id).delete(); } }
-        function updateBalanceToDB() { if(!isSandbox) db.collection("settings").doc("balance").set({ amount: parseFloat(document.getElementById('startBalance').value) || 0 }); }
+        
+        // V54 UPDATE: Save the minBuffer to the DB alongside the balance
+        function updateBalanceToDB() { 
+            if(!isSandbox) db.collection("settings").doc("balance").set({ 
+                amount: parseFloat(document.getElementById('startBalance').value) || 0,
+                buffer: parseFloat(document.getElementById('minBuffer').value) || 0
+            }); 
+        }
+        
         function updateAccountsToDB() { if(!isSandbox) db.collection("settings").doc("accounts").set({ list: customAccounts }); }
+        function updateCategoriesToDB() { if(!isSandbox) db.collection("settings").doc("categories").set({ list: customCategories }); }
+        function updateDebtsToDB() { if(!isSandbox) db.collection("settings").doc("debts").set({ list: debts }); }
 
         function togglePaid(id) {
             if(isSandbox) { let e = sandboxEvents.find(x=>x.id===id); if(e){ e.isPaid=!e.isPaid; if(e.isPaid){e.currentDate=e.originalDate; e.shifted=false;} generateSchedule();}
@@ -562,8 +569,10 @@
             }
         }
 
+        // V54 UPDATE: Sweeper correctly subtracts your Safety Buffer before offering funds.
         function sweepLeftovers() {
             let startBalance = parseFloat(document.getElementById('startBalance').value) || 0; 
+            let minBuffer = parseFloat(document.getElementById('minBuffer').value) || 0;
             let activeArr = getActiveEvents(); let today = new Date().toISOString().split('T')[0]; 
             let currentAvailable = startBalance;
             
@@ -573,9 +582,12 @@
                 }
             });
 
-            if(currentAvailable > 0) {
-                let amountToSweep = prompt(`You currently have $${currentAvailable.toFixed(2)} available. How much do you want to sweep into a goal or extra debt payment?`, currentAvailable.toFixed(2));
+            let sweepableAmount = currentAvailable - minBuffer;
+
+            if(sweepableAmount > 0) {
+                let amountToSweep = prompt(`Your balance is $${currentAvailable.toFixed(2)}.\nMinus your $${minBuffer} buffer, you have $${sweepableAmount.toFixed(2)} safe to sweep.\n\nHow much do you want to move?`, sweepableAmount.toFixed(2));
                 if(amountToSweep && !isNaN(amountToSweep) && amountToSweep > 0) {
+                    if (amountToSweep > currentAvailable) { alert("You cannot sweep more money than you actually have in the bank!"); return; }
                     let dest = prompt(`Where is this $${amountToSweep} going? (e.g., Vacation, Credit Card)`);
                     if(dest) { 
                         let existingGoal = activeArr.find(e => e.type === 'sinking' && e.name.toLowerCase() === dest.toLowerCase()); let sweepType = existingGoal ? 'sinking' : 'expense'; let sweepTarget = existingGoal ? existingGoal.goalTarget : 0; let sweepCat = existingGoal ? existingGoal.category : 'Savings / Sinking Fund'; 
@@ -584,11 +596,13 @@
                         if(isSandbox) sandboxEvents.push(ev); else db.collection("events").doc(swpId).set(ev); generateSchedule();
                     }
                 }
-            } else alert("You don't have any unallocated funds available to sweep right now!");
+            } else {
+                alert(`You do not have any funds available above your $${minBuffer} Safety Buffer right now.`);
+            }
         }
 
-        function addDebt() { const n=document.getElementById('debtName').value; const b=parseFloat(document.getElementById('debtBalance').value); const a=parseFloat(document.getElementById('debtAPR').value); const p=parseFloat(document.getElementById('debtPay').value); if(!n||isNaN(b)||isNaN(a)||isNaN(p)) return; debts.push({ id: Date.now().toString(), name:n, balance:b, apr:a, pay:p }); document.getElementById('debtName').value=''; document.getElementById('debtBalance').value=''; document.getElementById('debtAPR').value=''; document.getElementById('debtPay').value=''; db.collection("settings").doc("debts").set({list: debts}); }
-        function deleteDebt(id) { debts = debts.filter(d => d.id !== id); db.collection("settings").doc("debts").set({list: debts}); }
+        function addDebt() { const n=document.getElementById('debtName').value; const b=parseFloat(document.getElementById('debtBalance').value); const a=parseFloat(document.getElementById('debtAPR').value); const p=parseFloat(document.getElementById('debtPay').value); if(!n||isNaN(b)||isNaN(a)||isNaN(p)) return; debts.push({ id: Date.now().toString(), name:n, balance:b, apr:a, pay:p }); document.getElementById('debtName').value=''; document.getElementById('debtBalance').value=''; document.getElementById('debtAPR').value=''; document.getElementById('debtPay').value=''; updateDebtsToDB(); }
+        function deleteDebt(id) { debts = debts.filter(d => d.id !== id); updateDebtsToDB(); }
         function renderDebts() { 
             const list = document.getElementById('debtList'); list.innerHTML = ''; 
             debts.forEach(d => { 
@@ -816,60 +830,54 @@
             document.getElementById('savingsBar').style.width = `${Math.min(sPct, 100)}%`; document.getElementById('savingsBar').style.background = sPct < 15 ? '#e74c3c' : '#2ecc71';
         }
 
-        // V53 CRITICAL FIX: Lightning-Fast, Non-Crashing Smart Allocator
+        // V54 UPDATE: The Smart Allocator now strictly respects your dynamic minBuffer
         function generateSchedule() {
             let bal = parseFloat(document.getElementById('startBalance').value) || 0; 
+            let minBuffer = parseFloat(document.getElementById('minBuffer').value) || 0;
             let a = getActiveEvents();
             
             let processingArr = JSON.parse(JSON.stringify(a));
             
-            // 1. Reset dates
             processingArr.forEach(e => { if(!e.isPaid) { e.currentDate = e.originalDate; e.shifted = false; } });
 
-            // 2. Sort chronologically
             processingArr.sort((x, y) => {
                 let d = new Date(x.currentDate) - new Date(y.currentDate);
                 return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d;
             });
 
-            // 3. Establish strict baseline running balances
             let b = bal;
             processingArr.forEach(e => {
                 b += (e.type === 'income' ? e.amount : -e.amount);
                 e.runningBalance = b;
             });
 
-            // 4. Identify Paychecks
             let incomeDates = [...new Set(processingArr.filter(e => e.type === 'income').map(e => e.currentDate))].sort();
 
-            // 5. The O(N) Smart Allocator (Pays early ONLY if safe)
             let unpaidExpenses = processingArr.filter(e => !e.isPaid && e.type !== 'income');
             
             unpaidExpenses.forEach(exp => {
                 let priorIncomes = incomeDates.filter(d => d <= exp.originalDate);
                 if (priorIncomes.length > 0) {
-                    let targetDate = priorIncomes[priorIncomes.length - 1]; // Nearest prior paycheck
+                    let targetDate = priorIncomes[priorIncomes.length - 1]; 
                     
                     if (targetDate < exp.originalDate) {
                         let isSafe = true;
                         
-                        // Verify that paying early won't overdraft the account before the original due date
                         for (let i = 0; i < processingArr.length; i++) {
                             let ev = processingArr[i];
                             if (ev.currentDate >= targetDate && ev.currentDate < exp.originalDate) {
-                                if (ev.runningBalance - exp.amount < 0) {
+                                // V54 CHECK: Ensures the balance never drops below the user's custom Safety Buffer
+                                if (ev.runningBalance - exp.amount < minBuffer) {
                                     isSafe = false;
                                     break;
                                 }
                             }
                         }
 
-                        // If safe, snap the bill backward!
                         if (isSafe) {
                             exp.currentDate = targetDate;
                             exp.shifted = true;
                             
-                            // Instantly update the baseline to reflect the early payment
                             for (let i = 0; i < processingArr.length; i++) {
                                 let ev = processingArr[i];
                                 if (ev.currentDate >= targetDate && ev.currentDate < exp.originalDate) {
@@ -881,7 +889,6 @@
                 }
             });
 
-            // 6. Final Re-sort and Polish
             processingArr.sort((x, y) => {
                 let d = new Date(x.currentDate) - new Date(y.currentDate);
                 return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d;
@@ -911,8 +918,8 @@
                 return matchesSearch && matchesStatus && matchesCat;
             });
 
-            renderTable(filteredArr); 
-            if(filteredArr.length>0) renderCalendar(filteredArr, targetMonth, bal); 
+            renderTable(filteredArr, minBuffer); 
+            if(filteredArr.length>0) renderCalendar(filteredArr, targetMonth, bal, minBuffer); 
             else document.getElementById('calendarContainer').style.display='none';
             
             renderGoals(processingArr); 
@@ -937,11 +944,12 @@
             document.getElementById('budgetList').innerHTML = html || '<div style="font-size:12px; color:var(--text-muted);">Edit Categories to set monthly limits!</div>';
         }
 
-        function renderTable(events) {
+        function renderTable(events, minBuffer) {
             const tb=document.querySelector('#scheduleTable tbody'); tb.innerHTML=''; 
             events.forEach(e=>{
                 const tr=document.createElement('tr');
-                if(e.isPaid) tr.classList.add('is-paid'); else if(e.runningBalance<0) tr.classList.add('danger'); else if(e.shifted) tr.classList.add('shifted');
+                // V54 UPDATE: Rows turn red if they drop below your custom buffer, not just $0
+                if(e.isPaid) tr.classList.add('is-paid'); else if(e.runningBalance < minBuffer) tr.classList.add('danger'); else if(e.shifted) tr.classList.add('shifted');
                 let fb=e.flexibility==='flexible'?'<span class="badge badge-flex">Flex</span>':''; let sb=e.type==='sinking'?'<span class="badge badge-sinking">Goal</span>':''; let pb=e.projectTag?`<span class="badge badge-project">📁 ${e.projectTag}</span>`:'';
                 let accData=customAccounts.find(a=>a.id===e.account); let ab=accData?`<span class="badge" style="background:${accData.color}; color:white;">${accData.name}</span>`:'';
                 tr.innerHTML=`<td style="text-align:center;"><input type="checkbox" ${e.isPaid?'checked':''} onchange="togglePaid('${e.id}')"></td><td style="white-space:nowrap;">${e.currentDate}</td><td><strong>${e.name}</strong><br>${ab}${fb}${sb}${pb}</td><td class="${e.type==='income'?'income-text':''}">${e.type==='income'?'+':'-'}$${e.amount.toFixed(2)}</td><td><strong>$${(e.runningBalance || 0).toFixed(2)}</strong></td><td class="action-btns"><button class="btn-edit" onclick="editEvent('${e.id}')" title="Edit">✎</button><button class="btn-delete" onclick="deleteEventFromDb('${e.id}')" title="Delete">X</button></td>`;
@@ -985,7 +993,7 @@
             let blob = new Blob([csv], { type: 'text/csv' }); let url = window.URL.createObjectURL(blob); let a = document.createElement('a'); a.setAttribute('href', url); a.setAttribute('download', 'Household_Budget_Export.csv'); a.click(); 
         }
         
-        function renderCalendar(events, targetMonth, bal) { 
+        function renderCalendar(events, targetMonth, bal, minBuffer) { 
             document.getElementById('calendarContainer').style.display='block'; 
             const grid=document.getElementById('calendarGrid'); grid.innerHTML=''; 
             let byDate={}; events.forEach(e=>{ if(!byDate[e.currentDate]) byDate[e.currentDate]=[]; byDate[e.currentDate].push(e); }); 
@@ -1005,7 +1013,7 @@
                         let c=e.isPaid?'cal-is-paid':(e.type==='income'?'cal-income':(e.shifted?'cal-shifted':(e.type==='sinking'?'cal-sinking':'cal-expense'))); 
                         h+=`<div class="cal-event ${c}"><strong>${e.type==='income'?'+':'-'}$${e.amount}</strong> ${e.name}</div>`; 
                     }); 
-                    grid.innerHTML+=`<div class="calendar-day"><div class="day-number">${day}</div>${h}<div class="cal-eod-balance ${cur<0?'cal-eod-negative':''}">${cur.toFixed(0)}</div></div>`; 
+                    grid.innerHTML+=`<div class="calendar-day"><div class="day-number">${day}</div>${h}<div class="cal-eod-balance ${cur < minBuffer ? 'cal-eod-negative':''}">${cur.toFixed(0)}</div></div>`; 
                 } 
             } else { 
                 let we=new Date(currentWeekStart); we.setDate(we.getDate()+6); 
@@ -1020,7 +1028,7 @@
                         let c=e.isPaid?'cal-is-paid':(e.type==='income'?'cal-income':(e.shifted?'cal-shifted':(e.type==='sinking'?'cal-sinking':'cal-expense'))); 
                         h+=`<div class="cal-event ${c}"><strong>${e.type==='income'?'+':'-'}$${e.amount}</strong> ${e.name}</div>`; 
                     }); 
-                    grid.innerHTML+=`<div class="calendar-day" style="min-height: 120px;"><div class="day-number">${mNames[dD.getMonth()]} ${dD.getDate()}</div>${h}<div class="cal-eod-balance ${cur<0?'cal-eod-negative':''}">${cur.toFixed(0)}</div></div>`; 
+                    grid.innerHTML+=`<div class="calendar-day" style="min-height: 120px;"><div class="day-number">${mNames[dD.getMonth()]} ${dD.getDate()}</div>${h}<div class="cal-eod-balance ${cur < minBuffer ? 'cal-eod-negative':''}">${cur.toFixed(0)}</div></div>`; 
                 } 
             } 
         }
