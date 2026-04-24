@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Household Dashboard V55</title>
+    <title>Household Dashboard</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
@@ -111,7 +111,7 @@
 
     <div class="top-bar">
         <div>
-            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V55</span></h1>
+            <h1>Household Dashboard <span style="font-size: 14px; color: #e74c3c; font-weight:bold;" id="versionLabel">V57</span></h1>
             <div class="cloud-indicator" id="cloudStatus"><div class="pulse-dot"></div> Connecting to Database...</div>
         </div>
         <div class="top-bar-btns">
@@ -203,7 +203,7 @@
                 </div>
             </div>
             <div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;">
-                <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="archivePaid()">📦 Archive Paid Bills</button>
+                <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="archivePaid()">📦 Soft Archive Paid Bills</button>
                 <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="openAccountModal()">⚙️ Accounts</button>
                 <button class="btn-outline" style="width: auto; margin-bottom: 0; padding: 8px 12px;" onclick="openCategoryModal()">⚙️ Categories</button>
             </div>
@@ -378,11 +378,13 @@
                     <div style="flex:2; min-width: 150px;">
                         <input type="text" id="searchLedger" placeholder="🔍 Search names or tags..." onkeyup="generateSchedule()">
                     </div>
-                    <div style="flex:1; min-width: 120px;">
+                    <div style="flex:1; min-width: 130px;">
                         <select id="filterStatus" onchange="generateSchedule()">
-                            <option value="all">All Statuses</option>
+                            <option value="active" selected>Active Bills</option>
                             <option value="unpaid">Unpaid Only</option>
                             <option value="paid">Paid Only</option>
+                            <option value="archived">Archived History</option>
+                            <option value="all">View Everything</option>
                         </select>
                     </div>
                     <div style="flex:1; min-width: 120px;">
@@ -487,8 +489,7 @@
                 if (end && cur > end) break;
                 let uniqueId = Date.now().toString() + "_" + it + "_" + Math.random().toString(36).substr(2,5);
                 
-                // V55: Explicitly store 'frequency' in the object for safe retroactive editing
-                let ev = { id: uniqueId, name, type, category: cat, bucket: bkt, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: cur, currentDate: cur, shifted: false, isPaid: false, goalTarget: goal, projectTag: proj, seriesId: seriesId, endDate: end || "", frequency: freq };
+                let ev = { id: uniqueId, name, type, category: cat, bucket: bkt, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: cur, currentDate: cur, shifted: false, isPaid: false, goalTarget: goal, projectTag: proj, seriesId: seriesId, endDate: end || "", frequency: freq, isArchived: false };
                 
                 if(isSandbox) { sandboxEvents.push(ev); } else { let docRef = db.collection("events").doc(uniqueId); batch.set(docRef, ev); }
                 if(freq === 'once') break;
@@ -512,8 +513,7 @@
                     if (scope === 'single') {
                         deleteEventFromDb(currentlyEditingEvent.id);
                         let newId = Date.now().toString() + "_single_" + Math.random().toString(36).substr(2,5);
-                        // V55 Fix: Set frequency to 'once' for isolated edits
-                        let newEv = { id: newId, name, type, category: cat, bucket: bkt, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: date, currentDate: date, shifted: false, isPaid: currentlyEditingEvent.isPaid, goalTarget: goal, projectTag: proj, seriesId: sId, endDate: end || "", frequency: 'once' };
+                        let newEv = { id: newId, name, type, category: cat, bucket: bkt, account: acc, flexibility: (type==='income'||type==='sinking')?'fixed':flex, amount: amt, originalDate: date, currentDate: date, shifted: false, isPaid: currentlyEditingEvent.isPaid, goalTarget: goal, projectTag: proj, seriesId: sId, endDate: end || "", frequency: 'once', isArchived: currentlyEditingEvent.isArchived || false };
                         if(isSandbox) { sandboxEvents.push(newEv); generateSchedule(); } else { db.collection("events").doc(newId).set(newEv); }
                     } else {
                         let toDelete = getActiveEvents().filter(e => (e.seriesId === sId || (!e.seriesId && e.name === sId)) && e.originalDate >= targetDate);
@@ -538,8 +538,6 @@
                 document.getElementById('saveBtn').style.backgroundColor = "#f39c12"; 
                 document.getElementById('cancelEditBtn').style.display = "block"; 
                 document.getElementById('editScopeContainer').style.display = "flex"; 
-                
-                // V55 BUG FIX: Allow the frequency dropdown to remain visible so users can re-select it
                 document.getElementById('frequencyGroup').style.display = "block"; 
                 
                 document.getElementById('eventName').value = ev.name; 
@@ -551,8 +549,6 @@
                 document.getElementById('eventFlexibility').value = ev.flexibility; 
                 document.getElementById('eventAmount').value = ev.amount; 
                 document.getElementById('eventDate').value = ev.originalDate; 
-                
-                // Preload the previously assigned frequency. Fallback to monthly for backward compatibility.
                 document.getElementById('eventFrequency').value = ev.frequency || 'monthly';
                 
                 if(ev.type === 'sinking') document.getElementById('eventGoalTarget').value = ev.goalTarget; 
@@ -583,18 +579,34 @@
             } else { let e = rawEvents.find(x=>x.id===id); if(e) db.collection("events").doc(id).update({ isPaid: !e.isPaid, currentDate: e.originalDate, shifted: false }); }
         }
         
+        function unarchiveEvent(id) {
+            if(isSandbox) {
+                let e = sandboxEvents.find(x => x.id === id);
+                if(e) e.isArchived = false;
+                generateSchedule();
+            } else {
+                db.collection("events").doc(id).update({ isArchived: false });
+            }
+        }
+        
         async function archivePaid() {
-            if(confirm("This will permanently remove all 'Paid' items from your ledger so you can start fresh.\n\nProceed?")) {
-                let toDelete = getActiveEvents().filter(e => e.isPaid);
+            let paidEvents = getActiveEvents().filter(e => e.isPaid && !e.isArchived);
+            
+            if(paidEvents.length === 0) {
+                alert("You don't have any un-archived paid bills on your dashboard to hide right now!");
+                return;
+            }
+
+            if(confirm(`This will "Soft Archive" ${paidEvents.length} paid items.\n\nThey will be hidden from your main ledger to keep it clean and fast, but they will be safely saved in your history and pie charts.\n\nProceed?`)) {
                 if(isSandbox) {
-                    sandboxEvents = sandboxEvents.filter(e => !e.isPaid);
+                    sandboxEvents.forEach(e => { if(e.isPaid) e.isArchived = true; });
                     generateSchedule();
                 } else {
-                    document.getElementById('cloudStatus').innerHTML = `Archiving...`; 
-                    for (let i = 0; i < toDelete.length; i += 400) {
-                        let chunk = toDelete.slice(i, i + 400);
+                    document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot" style="background:#e67e22;"></div> Archiving...`; 
+                    for (let i = 0; i < paidEvents.length; i += 400) {
+                        let chunk = paidEvents.slice(i, i + 400);
                         let batch = db.batch();
-                        chunk.forEach(e => batch.delete(db.collection("events").doc(e.id)));
+                        chunk.forEach(e => batch.update(db.collection("events").doc(e.id), { isArchived: true }));
                         await batch.commit();
                     }
                     document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`;
@@ -624,7 +636,7 @@
                     if(dest) { 
                         let existingGoal = activeArr.find(e => e.type === 'sinking' && e.name.toLowerCase() === dest.toLowerCase()); let sweepType = existingGoal ? 'sinking' : 'expense'; let sweepTarget = existingGoal ? existingGoal.goalTarget : 0; let sweepCat = existingGoal ? existingGoal.category : 'Savings / Sinking Fund'; 
                         let sweepAcc = customAccounts.length > 0 ? customAccounts[0].id : 'default'; let swpId = Date.now().toString() + "_sweep";
-                        let ev = { id: swpId, name: `🧹 Sweep to: ${dest}`, type: sweepType, category: sweepCat, account: sweepAcc, flexibility: 'fixed', amount: parseFloat(amountToSweep), originalDate: today, currentDate: today, shifted: false, isPaid: true, goalTarget: sweepTarget, projectTag: 'Sweeper', seriesId: swpId, endDate: "" };
+                        let ev = { id: swpId, name: `🧹 Sweep to: ${dest}`, type: sweepType, category: sweepCat, account: sweepAcc, flexibility: 'fixed', amount: parseFloat(amountToSweep), originalDate: today, currentDate: today, shifted: false, isPaid: true, goalTarget: sweepTarget, projectTag: 'Sweeper', seriesId: swpId, endDate: "", isArchived: false };
                         if(isSandbox) sandboxEvents.push(ev); else db.collection("events").doc(swpId).set(ev); generateSchedule();
                     }
                 }
@@ -687,6 +699,7 @@
             document.getElementById('saveCatBtn').innerText = 'Update';
         }
 
+        // V57 BUG FIX: Added Firebase Chunking logic to category updates to prevent 500-limit crashes
         async function addCustomCategory() { 
             const n = document.getElementById('newCatName').value.trim(); 
             const b = parseFloat(document.getElementById('newCatBudget').value) || 0; 
@@ -700,12 +713,17 @@
                 if(catIndex > -1) { customCategories[catIndex] = { name: n, budget: b, bucket: bkt }; }
                 
                 if (oldName !== n && !isSandbox) {
-                    let batch = db.batch();
                     let eventsToUpdate = rawEvents.filter(e => e.category === oldName);
-                    eventsToUpdate.forEach(e => {
-                        batch.update(db.collection("events").doc(e.id), { category: n });
-                    });
-                    if(eventsToUpdate.length > 0) { await batch.commit(); }
+                    if(eventsToUpdate.length > 0) {
+                        document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot" style="background:#f39c12;"></div> Updating Category...`;
+                        for (let i = 0; i < eventsToUpdate.length; i += 400) {
+                            let chunk = eventsToUpdate.slice(i, i + 400);
+                            let batch = db.batch();
+                            chunk.forEach(e => batch.update(db.collection("events").doc(e.id), { category: n }));
+                            await batch.commit();
+                        }
+                        document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`;
+                    }
                 } else if (oldName !== n && isSandbox) {
                     sandboxEvents.forEach(e => { if(e.category === oldName) e.category = n; });
                 }
@@ -775,19 +793,33 @@
             });
         }
         function editMaster(id) { document.getElementById('masterModal').style.display = 'none'; editEvent(id); setTimeout(() => { document.getElementById('editScope').value = 'future'; }, 100); }
+        
+        // V57 BUG FIX: Added Firebase Chunking logic to series deletion to prevent 500-limit crashes
         async function deleteMasterSeries(sId) {
             if(confirm("Are you sure you want to completely delete EVERY future and past record of this item?")) {
                 let toDelete = getActiveEvents().filter(e => (e.seriesId === sId || (!e.seriesId && e.name === sId)));
-                if(isSandbox) { sandboxEvents = sandboxEvents.filter(e => !toDelete.includes(e)); generateSchedule(); renderMasterList(); } else {
-                    const batch = db.batch(); toDelete.forEach(e => batch.delete(db.collection("events").doc(e.id))); await batch.commit(); setTimeout(renderMasterList, 500); 
+                if(isSandbox) { 
+                    sandboxEvents = sandboxEvents.filter(e => !toDelete.includes(e)); 
+                    generateSchedule(); 
+                    renderMasterList(); 
+                } else {
+                    document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot" style="background:#e74c3c;"></div> Deleting...`;
+                    for (let i = 0; i < toDelete.length; i += 400) {
+                        let chunk = toDelete.slice(i, i + 400);
+                        let batch = db.batch();
+                        chunk.forEach(e => batch.delete(db.collection("events").doc(e.id)));
+                        await batch.commit();
+                    }
+                    document.getElementById('cloudStatus').innerHTML = `<div class="pulse-dot"></div> Live Synced`;
+                    setTimeout(renderMasterList, 500); 
                 }
             }
         }
 
         function analyzeActionItems(events) {
             let today = new Date().toISOString().split('T')[0]; let nextWeek = new Date(); nextWeek.setDate(nextWeek.getDate() + 7); let nextWeekStr = nextWeek.toISOString().split('T')[0];
-            let overdue = events.filter(e => e.type !== 'income' && !e.isPaid && e.currentDate <= today);
-            let upcoming = events.filter(e => e.type !== 'income' && !e.isPaid && e.currentDate > today && e.currentDate <= nextWeekStr);
+            let overdue = events.filter(e => e.type !== 'income' && !e.isPaid && e.currentDate <= today && !e.isArchived);
+            let upcoming = events.filter(e => e.type !== 'income' && !e.isPaid && e.currentDate > today && e.currentDate <= nextWeekStr && !e.isArchived);
             let html = '';
             if(overdue.length > 0) { let total = overdue.reduce((s,e)=>s+e.amount, 0); html += `<div style="color:#c0392b; font-weight:bold; margin-bottom:5px;">⚠️ ${overdue.length} Overdue Action(s) totaling $${total.toFixed(2)}</div>`; }
             if(upcoming.length > 0) { let total = upcoming.reduce((s,e)=>s+e.amount, 0); html += `<div style="color:#d35400; font-weight:bold;">📅 ${upcoming.length} Upcoming Bill(s) this week totaling $${total.toFixed(2)}</div>`; }
@@ -876,6 +908,7 @@
                 return d===0 ? (x.type==='income'&&y.type!=='income'?-1:(x.type!=='income'&&y.type==='income'?1:0)) : d;
             });
 
+            // True Ledger Math - ALL items (including archives) are mathematically processed
             let b = bal;
             processingArr.forEach(e => {
                 b += (e.type === 'income' ? e.amount : -e.amount);
@@ -940,16 +973,31 @@
             });
             updateCashFlowVisual(monthInc, monthExp);
             
-            let searchTerm = document.getElementById('searchLedger').value.toLowerCase(); let statusFilter = document.getElementById('filterStatus').value; let catFilter = document.getElementById('filterCategory').value;
+            // Visual Filters applied to Table ONLY
+            let searchTerm = document.getElementById('searchLedger').value.toLowerCase(); 
+            let statusFilter = document.getElementById('filterStatus').value; 
+            let catFilter = document.getElementById('filterCategory').value;
+            
             let filteredArr = processingArr.filter(e => {
                 let matchesSearch = e.name.toLowerCase().includes(searchTerm) || (e.projectTag && e.projectTag.toLowerCase().includes(searchTerm));
-                let matchesStatus = statusFilter === 'all' ? true : (statusFilter === 'paid' ? e.isPaid : !e.isPaid);
+                
+                // Advanced Status Filtering
+                let matchesStatus = true;
+                if(statusFilter === 'active') matchesStatus = !e.isArchived;
+                else if(statusFilter === 'unpaid') matchesStatus = !e.isPaid && !e.isArchived;
+                else if(statusFilter === 'paid') matchesStatus = e.isPaid && !e.isArchived;
+                else if(statusFilter === 'archived') matchesStatus = e.isArchived;
+                else if(statusFilter === 'all') matchesStatus = true; 
+
                 let matchesCat = catFilter === 'all' ? true : e.category === catFilter;
+                
                 return matchesSearch && matchesStatus && matchesCat;
             });
 
             renderTable(filteredArr, minBuffer); 
-            if(filteredArr.length>0) renderCalendar(filteredArr, targetMonth, bal, minBuffer); 
+            
+            // Calendar receives the FULL array, but we tell it what to hide using statusFilter
+            if(processingArr.length > 0) renderCalendar(processingArr, targetMonth, bal, minBuffer, statusFilter); 
             else document.getElementById('calendarContainer').style.display='none';
             
             renderGoals(processingArr); 
@@ -981,7 +1029,10 @@
                 if(e.isPaid) tr.classList.add('is-paid'); else if(e.runningBalance < minBuffer) tr.classList.add('danger'); else if(e.shifted) tr.classList.add('shifted');
                 let fb=e.flexibility==='flexible'?'<span class="badge badge-flex">Flex</span>':''; let sb=e.type==='sinking'?'<span class="badge badge-sinking">Goal</span>':''; let pb=e.projectTag?`<span class="badge badge-project">📁 ${e.projectTag}</span>`:'';
                 let accData=customAccounts.find(a=>a.id===e.account); let ab=accData?`<span class="badge" style="background:${accData.color}; color:white;">${accData.name}</span>`:'';
-                tr.innerHTML=`<td style="text-align:center;"><input type="checkbox" ${e.isPaid?'checked':''} onchange="togglePaid('${e.id}')"></td><td style="white-space:nowrap;">${e.currentDate}</td><td><strong>${e.name}</strong><br>${ab}${fb}${sb}${pb}</td><td class="${e.type==='income'?'income-text':''}">${e.type==='income'?'+':'-'}$${e.amount.toFixed(2)}</td><td><strong>$${(e.runningBalance || 0).toFixed(2)}</strong></td><td class="action-btns"><button class="btn-edit" onclick="editEvent('${e.id}')" title="Edit">✎</button><button class="btn-delete" onclick="deleteEventFromDb('${e.id}')" title="Delete">X</button></td>`;
+                
+                let unarchiveBtn = e.isArchived ? `<button class="btn-outline" style="padding:2px 5px; font-size:10px; margin:0;" onclick="unarchiveEvent('${e.id}')" title="Unarchive">⤴</button>` : '';
+
+                tr.innerHTML=`<td style="text-align:center;"><input type="checkbox" ${e.isPaid?'checked':''} onchange="togglePaid('${e.id}')"></td><td style="white-space:nowrap;">${e.currentDate}</td><td><strong>${e.name}</strong><br>${ab}${fb}${sb}${pb}</td><td class="${e.type==='income'?'income-text':''}">${e.type==='income'?'+':'-'}$${e.amount.toFixed(2)}</td><td><strong>$${(e.runningBalance || 0).toFixed(2)}</strong></td><td class="action-btns"><button class="btn-edit" style="padding:2px 5px; font-size:10px; margin:0;" onclick="editEvent('${e.id}')" title="Edit">✎</button>${unarchiveBtn}<button class="btn-delete" style="background:#e74c3c; padding:2px 5px; font-size:10px; margin:0; border:none; color:white; border-radius:4px;" onclick="deleteEventFromDb('${e.id}')" title="Delete">X</button></td>`;
                 tb.appendChild(tr);
             });
         }
@@ -1022,7 +1073,7 @@
             let blob = new Blob([csv], { type: 'text/csv' }); let url = window.URL.createObjectURL(blob); let a = document.createElement('a'); a.setAttribute('href', url); a.setAttribute('download', 'Household_Budget_Export.csv'); a.click(); 
         }
         
-        function renderCalendar(events, targetMonth, bal, minBuffer) { 
+        function renderCalendar(events, targetMonth, bal, minBuffer, statusFilter) { 
             document.getElementById('calendarContainer').style.display='block'; 
             const grid=document.getElementById('calendarGrid'); grid.innerHTML=''; 
             let byDate={}; events.forEach(e=>{ if(!byDate[e.currentDate]) byDate[e.currentDate]=[]; byDate[e.currentDate].push(e); }); 
@@ -1039,8 +1090,18 @@
                     let evs=byDate[dStr]||[]; let h=''; 
                     evs.forEach(e=>{ 
                         cur+=(e.type==='income'?e.amount:-e.amount); 
-                        let c=e.isPaid?'cal-is-paid':(e.type==='income'?'cal-income':(e.shifted?'cal-shifted':(e.type==='sinking'?'cal-sinking':'cal-expense'))); 
-                        h+=`<div class="cal-event ${c}"><strong>${e.type==='income'?'+':'-'}$${e.amount}</strong> ${e.name}</div>`; 
+                        
+                        let isVisible = false;
+                        if(statusFilter === 'active') isVisible = !e.isArchived;
+                        else if(statusFilter === 'unpaid') isVisible = !e.isPaid && !e.isArchived;
+                        else if(statusFilter === 'paid') isVisible = e.isPaid && !e.isArchived;
+                        else if(statusFilter === 'archived') isVisible = e.isArchived;
+                        else if(statusFilter === 'all') isVisible = true; 
+
+                        if(isVisible) {
+                            let c=e.isPaid?'cal-is-paid':(e.type==='income'?'cal-income':(e.shifted?'cal-shifted':(e.type==='sinking'?'cal-sinking':'cal-expense'))); 
+                            h+=`<div class="cal-event ${c}"><strong>${e.type==='income'?'+':'-'}$${e.amount}</strong> ${e.name}</div>`; 
+                        }
                     }); 
                     grid.innerHTML+=`<div class="calendar-day"><div class="day-number">${day}</div>${h}<div class="cal-eod-balance ${cur < minBuffer ? 'cal-eod-negative':''}">${cur.toFixed(0)}</div></div>`; 
                 } 
@@ -1054,8 +1115,18 @@
                     let evs=byDate[dStr]||[]; let h=''; 
                     evs.forEach(e=>{ 
                         cur+=(e.type==='income'?e.amount:-e.amount); 
-                        let c=e.isPaid?'cal-is-paid':(e.type==='income'?'cal-income':(e.shifted?'cal-shifted':(e.type==='sinking'?'cal-sinking':'cal-expense'))); 
-                        h+=`<div class="cal-event ${c}"><strong>${e.type==='income'?'+':'-'}$${e.amount}</strong> ${e.name}</div>`; 
+                        
+                        let isVisible = false;
+                        if(statusFilter === 'active') isVisible = !e.isArchived;
+                        else if(statusFilter === 'unpaid') isVisible = !e.isPaid && !e.isArchived;
+                        else if(statusFilter === 'paid') isVisible = e.isPaid && !e.isArchived;
+                        else if(statusFilter === 'archived') isVisible = e.isArchived;
+                        else if(statusFilter === 'all') isVisible = true; 
+
+                        if(isVisible) {
+                            let c=e.isPaid?'cal-is-paid':(e.type==='income'?'cal-income':(e.shifted?'cal-shifted':(e.type==='sinking'?'cal-sinking':'cal-expense'))); 
+                            h+=`<div class="cal-event ${c}"><strong>${e.type==='income'?'+':'-'}$${e.amount}</strong> ${e.name}</div>`; 
+                        }
                     }); 
                     grid.innerHTML+=`<div class="calendar-day" style="min-height: 120px;"><div class="day-number">${mNames[dD.getMonth()]} ${dD.getDate()}</div>${h}<div class="cal-eod-balance ${cur < minBuffer ? 'cal-eod-negative':''}">${cur.toFixed(0)}</div></div>`; 
                 } 
